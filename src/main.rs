@@ -1,0 +1,142 @@
+//! # Rufendec
+//! 
+//! #### Developer: Omkarium
+//! 
+//! Rufendec aka (Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders
+//! and retain the complete directory structure of the source directory files you provide into the target directory.
+//! 
+//! ## How to Use
+//! This is a binary crate, so its obvious that you need to use this as an executable. 
+//! First have cargo install and then run `cargo install rufendec`
+//! Next, go to the location of the binary and run the executable
+//! 
+//! ### Example
+//! If you run cargo run -- --help or ./rufendec --help. You will get this response
+//! ```
+//! Rufendec aka (Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders and retain the complete directory structure of the source directory files you provide into the target directory.
+//! 
+//! Usage: rufendec [OPTIONS] --key-file <KEY_FILE> --operation <OPERATION> <SOURCE_DIR> <TARGET_DIR>
+//!
+//! Arguments:
+//! <SOURCE_DIR>  Enter the Source Dir here (This is the directory you want to either Encrypt or Decrypt)
+//! <TARGET_DIR>  Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go)
+//!
+//! Options:
+//! -k, --key-file <KEY_FILE>    Enter the Filename containing your Key here. This is used to either Encrypt or Decrypt the Source Dir files
+//! -o, --operation <OPERATION>  Enter the Operation you want to perform on the Source Dir using the Key you provided [possible values: encrypt, decrypt]
+//! -t, --threads <THREADS>      Optionally you can choose to provide number of threads [default: 8]
+//! -h, --help                   Print help
+//! -V, --version                Print version
+//! ```
+//! for example, say if you want to encrypt all the files in directory say `./source-dir` using a 32 bytes key (example key: **Thisi/MyKeyT0Encryp%thislastTime**) which is maintained in a keyfile, and create a target directory say `./target-dir` which will hold the encrypted files
+//! by **retaining the complete folder structure of the source-dir and its sub-directories in the target-dir**, then you can run the command like this
+//! ```
+//! cargo run ../source-dir ../target-dir --key-file=../keyfile --operation=encrypt
+//! ```
+//! or
+//! ```
+//! ./rufendec ./source-dir ./target-dir --key-file=./keyfile --operation=encrypt
+//! ```
+//! Next, say you deleted the source-dir after encryption, and now you want the decrypted files and their respective directory structure back.
+//! To decrypt the encrypted files inside the target-dir you currently have, just run the below command. Once finished, your original files will be back in your source-dir
+//! ```
+//! cargo run ../target-dir ../source-dir --key-file=../keyfile --operation=decrypt
+//! ```
+//! or
+//! ```
+//! ./rufendec ./target-dir ./source-dir --key-file=./keyfile --operation=decrypt
+//! ```
+//! In the above examples, the names `source-dir` and `target-dir` are arbitrary. You can use any names to your source and target directories
+//! 
+
+mod operations;
+
+use clap::Parser;
+use std::{time::Instant, path::PathBuf, fs};
+use crate::operations::{
+    MY_32BYTE_KEY, DIR_LIST, FILE_LIST, 
+    create_dirs, decrypt_files, 
+    encrypt_files, recurse_dirs
+};
+use crate::operations::Operation;
+
+
+
+
+#[derive(Parser)]
+#[command(author="@github.com/omkarium", version="0.1.0", about, long_about = None)]
+struct Args {
+    /// Enter the Source Dir here (This is the directory you want to either Encrypt or Decrypt)
+    source_dir: String,
+    /// Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go)
+    target_dir: String,
+    /// Enter the Filename containing your Key here. This is used to either Encrypt or Decrypt the Source Dir files
+    #[arg(short, long)]
+    key_file: String,
+    /// Enter the Operation you want to perform on the Source Dir using the Key you provided
+    #[clap(short, long, value_enum)]    
+    operation: Operation,
+    /// Optionally you can choose to provide number of threads
+    #[clap(short, long, default_value_t = 8)]
+    threads: usize
+}
+
+fn main() {
+    let args = Args::parse();
+    *MY_32BYTE_KEY.lock().unwrap() = fs::read_to_string(args.key_file).expect("The key is not found in the keyfile").trim().to_owned();
+    let path = PathBuf::from(args.source_dir.clone());
+    recurse_dirs(&path);
+    println!("\n################### BEGIN #########################");
+    println!("The source directory you provided : {:?}", args.source_dir);
+    println!("The target director you provided : {:?}", args.target_dir);
+    println!("This number of directories will be created in the target directory : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
+    println!("This number of files will be created in the target directory: {}", FILE_LIST.lock().unwrap().to_vec().capacity());
+    println!("Total threads about to be used : {}", args.threads);
+    println!("Operation about to be performed on the source directory : {:?}", args.operation);
+
+
+    println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    use std::io::{stdin,stdout,Write};
+    let mut s=String::new();
+    println!("Alert!!! Most file encryption softwares are descrutive in nature. You MUST know what you are doing.
+         Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your souce files.
+         
+         Also, make sure you are not decrypting a source folder which is not encrypted. If done so, your source files will get corrupted.
+         This program will not be able to pre-validate whether the files you have provided as either encrypted or decrypted. 
+         
+         Ensuring correct files for the operation you choose is your job");
+    println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    print!("Please type Y for yes, and N for no : ");
+    let _=stdout().flush();
+    stdin().read_line(&mut s).expect("You entered incorrect response");
+    if let Some('\n')=s.chars().next_back() {
+        s.pop();
+    }
+    if let Some('\r')=s.chars().next_back() {
+        s.pop();
+    }
+    println!("You typed: {}",s);
+
+    if s == "Y" {
+        let start_time = Instant::now();
+        match args.operation {
+            Operation::Encrypt => {
+                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Encrypt);
+                encrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads);
+            },
+            Operation::Decrypt => {
+                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Decrypt);
+                decrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads);
+            }
+        }
+        let elapsed = Some(start_time.elapsed());
+        println!("\n============Results==============\n");
+        println!("Time taken to finish the {:?}, Operation: {:?}", args.operation, elapsed.unwrap());
+        println!("We are done. Enjoy hacker!!! 😎");
+        println!("\n=================================\n");
+
+    } else {
+        println!("\nPhew... You QUIT! Guess you really know what you are doing. Good choice.\n");
+
+    }
+}
