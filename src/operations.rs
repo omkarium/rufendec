@@ -38,18 +38,17 @@ pub fn recurse_dirs(item: &PathBuf) {
     }
 }
 
-pub fn create_dirs(paths: Vec<PathBuf>, operation: Operation) {
+pub fn create_dirs(paths: Vec<PathBuf>, operation: Operation, source_dir_name: &str, target_dir_name: &str) {
    for parent in paths {
        let destination = match operation {
-           Operation::Encrypt => parent.to_owned().as_mut_os_str().to_str().unwrap().replace("../omfe-dec", "../omfe-enc"),
-           Operation::Decrypt => parent.to_owned().as_mut_os_str().to_str().unwrap().replace("../omfe-enc", "../omfe-dec"),
+           _ => parent.to_owned().as_mut_os_str().to_str().unwrap().replace(source_dir_name, target_dir_name),
        };
        println!("Directory created => {:?}", destination);
        let _ = fs::create_dir_all(destination);
    }
 }
 
-pub fn encrypt_files(file_list: Vec<PathBuf>, thread_count: usize) {
+pub fn encrypt_files(file_list: Vec<PathBuf>, thread_count: usize, source_dir_name: &str, target_dir_name: &str) {
    let pool = rayon::ThreadPoolBuilder::new().num_threads(thread_count).build().unwrap();
    pool.install(|| {
        rayon::scope(|s| {
@@ -57,9 +56,9 @@ pub fn encrypt_files(file_list: Vec<PathBuf>, thread_count: usize) {
                s.spawn(move |_| {
                    if let Ok(file_data)  = fs::read_to_string(file.clone()){
                        let mut encrypt_obj: Encryptor = Encryptor::from(&file_data);
-                       let encrypted_bytes: Vec<u8> = encrypt_obj.encrypt_with(&MY_32BYTE_KEY.lock().unwrap());
+                       let encrypted_bytes: Vec<u8> = encrypt_obj.encrypt_with(&MY_32BYTE_KEY.lock().expect("Failed to get a lock on the password"));
            
-                       let new_file_name = file.as_os_str().to_str().unwrap().replace("../omfe-dec", "../omfe-enc").to_string() + ".enc";
+                       let new_file_name = file.as_os_str().to_str().unwrap().replace(source_dir_name, target_dir_name).to_string() + ".enc";
                        println!("Encrypted file :: {}", new_file_name);
                        let _ = fs::write(new_file_name, encrypted_bytes);
                    }
@@ -70,7 +69,7 @@ pub fn encrypt_files(file_list: Vec<PathBuf>, thread_count: usize) {
    
 }
 
-pub fn decrypt_files(file_list: Vec<PathBuf>, thread_count: usize) {
+pub fn decrypt_files(file_list: Vec<PathBuf>, thread_count: usize, source_dir_name: &str, target_dir_name: &str) {
    let pool = rayon::ThreadPoolBuilder::new().num_threads(thread_count).build().unwrap();
    pool.install(|| {
        rayon::scope(|s| {
@@ -78,8 +77,8 @@ pub fn decrypt_files(file_list: Vec<PathBuf>, thread_count: usize) {
                s.spawn(move |_| {
                    if let Ok(file_data)  = fs::read(file.clone()){
                        let mut decrypt_obj: Decryptor = Decryptor::from(&file_data);
-                       let decrypted_text: String = decrypt_obj.decrypt_with(&MY_32BYTE_KEY.lock().expect("Failed to get a lock on the key"));
-                       let new_file_name = file.as_os_str().to_str().unwrap().replace("../omfe-enc", "../omfe-dec").replace(".enc", "").to_string();
+                       let decrypted_text: String = decrypt_obj.decrypt_with(&MY_32BYTE_KEY.lock().expect("Failed to get a lock on the password"));
+                       let new_file_name = file.as_os_str().to_str().unwrap().replace(source_dir_name, target_dir_name).replace(".enc", "").to_string();
                        println!("Decrypted file :: {}", new_file_name);
                        let _ = fs::write(new_file_name, decrypted_text);
                    }
