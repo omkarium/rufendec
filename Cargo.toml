@@ -1,6 +1,6 @@
 [package]
 name = "rufendec"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Rufendec aka (Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders and retain the complete directory structure of the source directory files you provide into the target directory"
 authors = ["Venkatesh Omkaram"]
