@@ -64,7 +64,7 @@ use crate::operations::Operation;
 
 
 #[derive(Parser)]
-#[command(author="@github.com/omkarium", version="0.1.0", about, long_about = None)]
+#[command(author="@github.com/omkarium", version, about, long_about = None)]
 struct Args {
     /// Enter the Source Dir here (This is the directory you want to either Encrypt or Decrypt)
     source_dir: String,
@@ -85,6 +85,7 @@ fn main() {
     let args = Args::parse();
     *MY_32BYTE_KEY.lock().unwrap() = fs::read_to_string(args.password_file).expect("The password is not found in the passwordfile").trim().to_owned();
     let path = PathBuf::from(args.source_dir.clone());
+    DIR_LIST.lock().unwrap().push(path.clone());
     recurse_dirs(&path);
     println!("\n################### BEGIN #########################");
     println!("The source directory you provided : {:?}", args.source_dir);
@@ -101,10 +102,17 @@ fn main() {
     println!("Alert!!! Most file encryption softwares are descrutive in nature. You MUST know what you are doing.
          Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your souce files.
          
-         Also, make sure you are not decrypting a source folder which is not encrypted. If done so, your source files will get corrupted.
-         This program will not be able to pre-validate whether the files you have provided as either encrypted or decrypted. 
+         =======================================
+         Two important points before you proceed
+         =======================================
+
+         1. Makesure you are not decrypting a source folder which is not encrypted. If done so, your source files will get corrupted.
+            This program will not be able to pre-validate whether the files you have provided as either encrypted or decrypted. 
+
+         2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for example bianry files.
+            It will either create or skip such files, but ensure you don't try to encrypt anything as such.
          
-         Ensuring correct files for the operation you choose is your job");
+         Ensure you provide the correct files for the operation you choose");
     println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     print!("Please type Y for yes, and N for no : ");
     let _=stdout().flush();
