@@ -133,7 +133,7 @@ fn main() {
     println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     use std::io::{stdin,stdout,Write};
     let mut s=String::new();
-    println!("Alert!!! Most file encryption softwares are descrutive in nature. You MUST know what you are doing.
+    println!("Alert!!! Most file encryption softwares are destructive in nature. You MUST know what you are doing.
          Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your souce files.
          
          =======================================
