@@ -1,16 +1,19 @@
 [package]
 name = "rufendec"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "Rufendec aka (Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders and retain the complete directory structure of the source directory files you provide into the target directory"
 authors = ["Venkatesh Omkaram"]
 license = "MIT"
 repository = "https://github.com/omkarium/rufendec"
-keywords = ["aes", "aes-256", "file-encryption-tool"]
+documentation = "https://docs.rs/rufendec"
+readme = "README.md"
+keywords = ["aes", "aes-256", "aes-gcm", "file-encryption-tool", "encryption"]
+categories = ["cryptography"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-byte-aes = "0.2.0"
+byte-aes = "0.2.2"
 clap = { version = "4.4.11", features = ["derive"] }
 lazy_static = "1.4.0"
 rayon = "1.8.0"
@@ -25,3 +28,4 @@ lto = true
 codegen-units = 1
 panic = 'abort'
 strip = true
+

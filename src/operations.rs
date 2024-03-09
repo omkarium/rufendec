@@ -1,11 +1,10 @@
-use byte_aes::Encryptor;
-use byte_aes::Decryptor;
+use byte_aes::Aes256Cryptor;
 use std::{fs, path::PathBuf};
 pub use std::sync::Mutex;
 use rayon;
 use lazy_static::lazy_static;
 use aes_gcm::{
-    aead::{Aead, AeadCore, KeyInit, OsRng},
+    aead::{rand_core::le, Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm //, Nonce, Key // Or `Aes128Gcm`
 };
 use aes_gcm::aes::cipher::{
@@ -82,8 +81,8 @@ pub fn encrypt_files(file_list: Vec<PathBuf>, thread_count: usize, source_dir_na
                    if let Ok(file_data)  = fs::read(file.clone()){
                      match mode {
                         Mode::ECB => {
-                            let mut encrypt_obj: Encryptor = Encryptor::from(file_data.as_slice());
-                            let encrypted_bytes = encrypt_obj.encrypt_with(&ECB_32BYTE_KEY.lock().expect("Failed to get a lock on the password")); // vec<u8>
+                            let mut encrypt_obj = Aes256Cryptor::try_from(&ECB_32BYTE_KEY.lock().expect("Failed to get a lock on the password") as &str).unwrap();
+                            let encrypted_bytes = encrypt_obj.encrypt(file_data); // vec<u8>
                             let new_file_name = file.as_os_str().to_str().expect("Found a bad file").replace(source_dir_name, target_dir_name).to_string() + ".enc";
                             println!("Encrypted file :: {}", new_file_name); 
                             let _ = fs::write(new_file_name, encrypted_bytes);
@@ -143,13 +142,16 @@ pub fn decrypt_files(file_list: Vec<PathBuf>, thread_count: usize, source_dir_na
                         }
                     }
                     else {
-                        let mut decrypt_obj: Decryptor = Decryptor::from(file_data);
-                        let decrypted_bytes = decrypt_obj.decrypt_with(&ECB_32BYTE_KEY.lock().expect("Failed to get a lock on the password"));
-                        let new_file_name = file.as_os_str().to_str().unwrap().replace(source_dir_name, target_dir_name).replace(".enc", "").to_string();
-                        println!("Decrypted file :: {}", new_file_name);
-                        let _ = fs::write(new_file_name, decrypted_bytes);
+                        let mut decrypt_obj = Aes256Cryptor::try_from(&ECB_32BYTE_KEY.lock().expect("Failed to get a lock on the password") as &str).unwrap();
+                        let decrypted_result = decrypt_obj.decrypt(file_data);
+                        if let Ok(decrypted_bytes) = decrypted_result {
+                            let new_file_name = file.as_os_str().to_str().unwrap().replace(source_dir_name, target_dir_name).replace(".enc", "").to_string();
+                            println!("Decrypted file :: {}", new_file_name);
+                            let _ = fs::write(new_file_name, decrypted_bytes);
+                        }
                     };
-                       
+
+                    
                    }
                });
            }

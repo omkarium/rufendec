@@ -50,7 +50,7 @@
 //! ```
 //! In the above examples, the names `source-dir` and `target-dir` are arbitrary. You can use any names to your source and target directories.
 //! 
-//! *Also, when you choose GCM mode, you have to pass a salt in the 2nd line after specifying the password in th 1st line. But if you go for ECB mode, you dont need to specify a salt.
+//! *Also, when you choose GCM mode, you have to pass a salt in the 2nd line after specifying the password in th 1st line. But if you go for ECB mode, you don't need to specify a salt.
 //! In either case, the password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2.*
 //!
 //! Example context inside a ./passwordfile
@@ -133,24 +133,27 @@ fn main() {
     println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     use std::io::{stdin,stdout,Write};
     let mut s=String::new();
-    println!("Alert!!! Most file encryption softwares are destructive in nature. You MUST know what you are doing.
-         Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your souce files.
+    println!("⚠️Warning ⚠️ Most file encryption softwares are destructive in nature. You MUST know what you are doing.
+         Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your source files.
          
          =======================================
-         Two important points before you proceed
+         Three critical points before you proceed
          =======================================
 
-         1. Makesure you are not decrypting a source folder which is not encrypted. 
-            If done so, your source files will get corrupted.
-            This program will not be able to pre-validate whether the files you have provided as either encrypted or decrypted. 
+         1. Make sure you are not decrypting a source folder which is not already encrypted. 
+            If done so, your source files WILL get corrupted.
+            This program WILL not be able to pre-validate whether the files you have provided as input are either encrypted or decrypted.
 
-         2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for example binary files.
-            It will either create or skip such files, but ensure you don't try to encrypt anything as such.
+         2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for example binary files/executables.
+            It will either create or skip such files, but ensure you don't try to encrypt anything as such in the first place.
+            If done so, the later you decrypt them, the binaries may or may not work.
 
-         3. If you encrypted with --mode=gcm, and you tried to decrypt with --mode=ecb, 
-            then the program generates the target files but filled with junk.
+         3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb, 
+            then the program will generate your decrypted target files, but those WILL get corrupted filled with gibberish.
          
-         Ensure you provide the correct files for the operation you choose");
+         Ensure you provide the correct files for the operation you choose
+         
+         USE AT YOUR OWN RISK!");
     println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     print!("Please type Y for yes, and N for no : ");
     let _=stdout().flush();

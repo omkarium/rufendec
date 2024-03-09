@@ -129,9 +129,9 @@ checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 
 [[package]]
 name = "byte-aes"
-version = "0.2.0"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8c08323474308a64dd4a0f006bec0ba4b1ae3920b721fecb9e8d97a494e10da"
+checksum = "4681365f406e9d3058af9875a7b2802ae49c961ac936abf7ccb6b0f5355e4a78"
 dependencies = [
  "aes",
 ]
@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "rufendec"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aes-gcm",
  "byte-aes",
