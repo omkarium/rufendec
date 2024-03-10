@@ -6,19 +6,18 @@
 ![Category][category-image]
 
 
-Rufendec aka (The Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders
-and retain the complete directory structure of the source directory files you provide onto a specified target directory.
+Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption. This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
 
 ## How to Use
-This is a rust binary crate, so its obvious that you need to use this as an executable. 
-First have cargo install and then run `cargo install rufendec`
-Next, go to the location of the binary and run the executable
+This is a rust binary crate, so it must be obvious that you need to treat this as an executable. If you already know what Cargo is and how to use it, then go ahead and install and `Rufendec` by running the command `cargo install rufendec`
 
-### Example
-If you run cargo run -- --help or ./rufendec --help. You will get this response
+Next, to execute rufendec try running the command `rufendec --help`. However, if you do not wish to install this program on your system permanently, then CD (change directory) into the cloned git repo and run `cargo run -- --help`.
+
+Either way, the result of executing Rufendec will be like the below.
+
 
 ```
-Rufendec aka (Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders and retain the complete directory structure of the source directory files you provide into the target directory.
+Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption. This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
 
 Usage: rufendec [OPTIONS] --password-file <PASSWORD_FILE> --operation <OPERATION> --mode <MODE> <SOURCE_DIR> <TARGET_DIR>
 
@@ -28,34 +27,42 @@ Arguments:
 
 Options:
 -p, --password-file <PASSWORD_FILE>    Enter the Filename containing your password (and the "salt" in the 2nd line if you choose gcm) here. This is used to either Encrypt or Decrypt the Source Dir files
--o, --operation <OPERATION>  Enter the Operation you want to perform on the Source Dir using the password you provided [possible values: encrypt, decrypt]
+-o, --operation <OPERATION>            Enter the Operation you want to perform on the Source Dir using the password you provided [possible values: encrypt, decrypt]
 -t, --threads <THREADS>                Threads to speed up the execution [default: 8]
 -m, --mode <MODE>                      Provide the mode of Encryption here [possible values: ecb, gcm]
 -i, --iterations <ITERATIONS>          Iterations --mode=gcm [default: 60000]
 -h, --help                             Print help
 -V, --version                          Print version
 ```
-for example, say if you want to encrypt all the files in directory say `./source-dir` using a password (example password: **Thisi/MyKeyT0Encryp**) which is maintained in a passwordfile, and create a target directory say `./target-dir` which will hold the encrypted files
-by **retaining the complete folder structure of the source-dir and its sub-directories in the target-dir**, then you can run the command like this
+
+### Demo
+<img src="https://github.com/omkarium/gifs/blob/main/encrypt-and-decrypt-using-gcm.gif" alt="Rufendec Demo gif" title="Rufendec Demo gif" width="850"/>
+
+### How to Encrypt
+To illustrate how to use this, say you want to encrypt all the files in the directory `./source-dir` using a password. An example password would be like **Thisi/MyKeyT0Encryp**, which is maintained in a password file. Now you want all the files in this "./source-dir" encrypted and have them placed in a target directory say `./target-dir` by **retaining the complete file names and sub-directory structure of the source inside**. Then you can run the command like this
+
 ```
 cargo run ../source-dir ../target-dir --password-file=../passwordfile --operation=encrypt --mode=ecb
 ```
 or
 ```
-./rufendec ./source-dir ./target-dir --password-file=./passwordfile --operation=encrypt --mode=ecb
+rufendec ./source-dir ./target-dir --password-file=./passwordfile --operation=encrypt --mode=ecb
 ```
-Next, say you deleted the source-dir after encryption, and now you want the decrypted files and their respective directory structure back.
-To decrypt the encrypted files inside the target-dir you currently have, just run the below command. Once finished, your original files will be back in your source-dir
+
+### How to Decrypt
+Now imagine you have deleted the directory "source-dir" after successfully encrypting the files, but now you want the decrypted files and their respective parent directories and the structure back.
+
+To decrypt the encrypted files inside the "target-dir" you currently have with you, just run the below command. Once finished, your original files will be back in your source-dir.
 ```
 cargo run ../target-dir ../source-dir --password-file=../passwordfile --operation=decrypt --mode=ecb
 ```
 or
 ```
-./rufendec ./target-dir ./source-dir --password-file=./passwordfile --operation=decrypt --mode=ecb
+rufendec ./target-dir ./source-dir --password-file=./passwordfile --operation=decrypt --mode=ecb
 ```
-In the above examples, the names `source-dir` and `target-dir` are arbitrary. You can use any names to your source and target directories.
+In the above examples, the names `source-dir` and `target-dir` are arbitrary. You can use any names to your source and target directories. The target directory is something which is always created if not created already.
 
-*Also, when you choose GCM mode, you have to pass a salt in the 2nd line after specifying the password in th 1st line. But if you go for ECB mode, you don't need to specify a salt. In either case, the password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2*
+*Also, when you choose GCM mode, in the password file, you have to pass a salt in the 2nd line after specifying the password in th 1st line. But if you go for ECB mode, you don't need to specify a salt. In either case, the password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2*
 
 Example context inside a ./passwordfile
 ```
@@ -66,7 +73,9 @@ SomethingSaltIGiveOfAnyLength
 
 ### ⚠️ Warning ⚠️
 
-Using this program MUST be considered DANGEROUS. Since this is a file encryption software, there is a possibility that you could lose your data forever if used incorrectly. I strongly suggest you to use it on a test folder first with the files you want to encrypt and later try to decrypt and see if the file content is still the same. Kindly, take backup of whatever you are encrypt first. BACKUP, BACKUP BACKUP!!! as frequent as you can.
+Using this program MUST be considered DANGEROUS. Since this is a file encryption software, there is a possibility that you could lose your data forever if used incorrectly. I strongly suggest you to use it on a test folder first with the files you want to encrypt and later try to decrypt and see if the file content is still the same by comparing their checksum. Do note that for file types such as pdf, the checksum may not be the same as the metadata such as creation time, modified time changes. 
+
+Kindly take backup of whatever you are encrypt first. I repeat, BACKUP BACKUP BACKUP!!! as frequent as you can.
 
 If you find any security vulnerabilities in code, please submit an issue.
 
@@ -88,6 +97,9 @@ Ensure you provide the correct files for the operation you choose
 
 USE AT YOUR OWN RISK!
 
+### Will I maintain this project?
+
+I am just a Rust amateur, and I tend to forget what I have learnt even after writing complex stuff and spending days on it if I just take a few months break from coding. So, if any problem arises with this tool, I might not be able to immediately fix it or add a new feature, but I will try to support this to the best of my abilities and interest. I also believe that tools like these are one-off, like "Write once, compile and execute anywhere". This is not that kind of tool which needs constant maintenance. It only has to be maintained only if the Dependent crates in Cargo.toml change versions, and yank the older versions. But that is very unlikely to happen. Even so, you can always find a compiled release here on github releases.
 
 [//]: # (badges)
 
