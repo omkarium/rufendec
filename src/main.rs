@@ -176,17 +176,17 @@ fn main() {
                         } else {
 
                             println!("Failed the read the password file");
-                            println!("You need to manually enter the credentials. Credentials will not be visible as you type.");
+                            println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
                             password_prompt()
 
                         }
                     } else {
-                        println!("You need to manually enter the credentials. Credentials will not be visible as you type.");
+                        println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
                         password_prompt()
                     }
                    
                 } else {
-                    println!("You need to manually enter the credentials. Credentials will not be visible as you type.");
+                    println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
                     password_prompt()
                 }
 
