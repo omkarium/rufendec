@@ -82,7 +82,7 @@ struct Args {
     /// Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go)
     target_dir: String,
     /// Enter the Filename containing your password (and the 'salt' in the 2nd line if you choose gcm) here. This is used to either Encrypt or Decrypt the Source Dir files
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = String::new())]
     password_file: String,
     /// Enter the Operation you want to perform on the Source Dir using the password you provided
     #[clap(short, long, value_enum)]    
@@ -91,7 +91,7 @@ struct Args {
     #[clap(short, long, default_value_t = 8)]
     threads: usize,
     /// Provide the mode of Encryption here
-    #[clap(short, long, value_enum)]    
+    #[clap(short, long, value_enum, default_value_t = Mode::GCM)]    
     mode: Mode,
     /// Iterations --mode=gcm [default: 60000]
     #[clap(short, long, default_value_t = 60_000)]
@@ -102,20 +102,34 @@ fn main() {
     let args = Args::parse();
     match args.mode {
         Mode::ECB => {
-            *ECB_32BYTE_KEY.lock().unwrap() = fs::read_to_string(args.password_file).expect("The password is not found in the passwordfile").trim().to_owned();
-            if ECB_32BYTE_KEY.lock().unwrap().len() != 32 {
-                panic!("The key specified in the password file is not of 32 bytes. Did you miss characters? or did you specify a 2nd line by accident?");
+            if let Ok(tmp) = fs::read_to_string(args.password_file) {
+                *ECB_32BYTE_KEY.lock().unwrap() = tmp.trim().to_owned();
+                if ECB_32BYTE_KEY.lock().unwrap().len() != 32 {
+                    panic!("The key specified in the password file is not of 32 bytes. Did you miss characters? or did you specify a 2nd line by accident?");
+                }
+            } else {
+                println!("\nSorry, I did not find a password-file provided as a command-line options. You need to manually enter the credentials.\n");
+                *ECB_32BYTE_KEY.lock().unwrap() = prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned();
             }
+            
         },
         Mode::GCM => {
-            let file = fs::read_to_string(args.password_file).expect("The password is not found in the passwordfile");
-            let mut lines = file.trim().lines();
-            let password = lines.next().expect("Password is expected").as_bytes();
-            let salt = lines.next().expect("Salt is expected in the password-file").as_bytes();
+            let (password, salt) = if let Ok(tmp) = fs::read_to_string(args.password_file) {
+                file = tmp.clone();
+                lines = file.trim().lines();
+                (lines.next().expect("Password is expected").to_owned(), lines.next().expect("Salt is expected in the password-file").to_owned())
+            } else {
+                println!("\nSorry, I did not find a password-file provided as a command-line options. You need to manually enter the credentials. Credentials will not be visible as you type.\n");
+                (prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned(),
+                prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned())
+
+            };
+
             //let salt = SaltString::generate(&mut OsRng);
-            let key = pbkdf2_hmac_array::<Sha256, 32>(password, salt, args.iterations);
+            let key = pbkdf2_hmac_array::<Sha256, 32>(password.as_bytes(), salt.as_bytes(), args.iterations);
             let key_gen = Key::<Aes256Gcm>::from_slice(&key);
-            GCM_32BYTE_KEY.lock().unwrap().push(key_gen.to_owned())
+            GCM_32BYTE_KEY.lock().unwrap().push(key_gen.to_owned());
+            println!("\nGenerated a key based on PBKDF2 HMAC (SHA256) function ...");
 
         }
     }
