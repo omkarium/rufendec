@@ -56,9 +56,13 @@ or
 rufendec ./source-dir ./target-dir --password-file=./passwordfile --operation=encrypt --mode=ecb
 ```
 
-Here is some other variations
+Here are some variations in the command
 
 ```
+rufendec ./source-dir ./target-dir --password-file ./passwordfile --operation encrypt --mode ecb
+
+OR
+
 rufendec ./source-dir ./target-dir -p ./passwordfile -o encrypt -m gcm -t 12 -i 100000
 ```
 The mode, threads and iterations have default values, so you do not need to pass them. Also, if you maintain the password file in /etc, /home, /root or ".", then you do not need to pass the -p option.
@@ -91,7 +95,7 @@ Using this program MUST be considered DANGEROUS. Since this is a file encryption
 
 Kindly take backup of whatever you are encrypt first. I repeat, BACKUP BACKUP BACKUP!!! as frequent as you can.
 
-If you find any security vulnerabilities in code, please submit an issue.
+If you find any security vulnerabilities in code, please submit an issue privately.
 
 ---------------------------------------
 Four unbreakable rules you MUST follow
