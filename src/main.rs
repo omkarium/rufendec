@@ -1,6 +1,6 @@
 //! # Rufendec
 //! 
-//! #### Developer: Omkarium
+//! #### Developer: Venkatesh Omkaram
 //! 
 //! Rufendec aka (Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders
 //! and retain the complete directory structure of the source directory files you provide into the target directory.
@@ -63,9 +63,7 @@ mod operations;
 use clap::Parser;
 use std::{time::Instant, path::PathBuf, fs, io::{stdin,stdout,Write}};
 use crate::operations::{
-    ECB_32BYTE_KEY, GCM_32BYTE_KEY, DIR_LIST, FILE_LIST, FAILED_COUNT, SUCCESS_COUNT,
-    create_dirs, decrypt_files, 
-    encrypt_files, recurse_dirs
+    create_dirs, decrypt_files, encrypt_files, find_password_file, recurse_dirs, DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT
 };
 use crate::operations::{Operation, Mode};
 use rpassword::prompt_password;
@@ -81,43 +79,66 @@ struct Args {
     source_dir: String,
     /// Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go)
     target_dir: String,
-    /// Enter the Filename containing your password (and the 'salt' in the 2nd line if you choose gcm) here. This is used to either Encrypt or Decrypt the Source Dir files
+    /// Enter the password file with an extension ".omk". The first line in the file must have the password, and If you choose mode=gcm then ensure to pass the "Salt" in the 2nd line
     #[arg(short, long, default_value_t = String::new())]
     password_file: String,
-    /// Enter the Operation you want to perform on the Source Dir using the password you provided
+    /// Enter the Operation you want to perform on the Source Dir
     #[clap(short, long, value_enum)]    
     operation: Operation,
-    /// Threads to speed up the execution [default: 8]
+    /// Threads to speed up the execution
     #[clap(short, long, default_value_t = 8)]
     threads: usize,
     /// Provide the mode of Encryption here
     #[clap(short, long, value_enum, default_value_t = Mode::GCM)]    
     mode: Mode,
-    /// Iterations --mode=gcm [default: 60000]
+    /// Iterations for PBKDF2
     #[clap(short, long, default_value_t = 60_000)]
     iterations: u32,
+}
+fn password_prompt() -> (String, String) {
+    (prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned(),
+    prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned())
+}
+
+fn confirmation() -> String {
+    let mut confirmation: String=String::new();
+    print!("\nPlease type Y for yes, and N for no : ");
+
+    let _=stdout().flush();
+
+    stdin().read_line(&mut confirmation).expect("You entered incorrect response");
+
+    if let Some('\n')= confirmation.chars().next_back() {
+        confirmation.pop();
+    }
+
+    if let Some('\r')= confirmation.chars().next_back() {
+        confirmation.pop();
+    }
+
+    println!("\nYou typed: {}\n", confirmation);
+    confirmation
 }
 
 fn main() {
     let args = Args::parse();
     let file: String;
     let mut lines: std::str::Lines<>;
-    let mut confirmation: String=String::new();
-
-    
     let path = PathBuf::from(args.source_dir.clone());
+
     DIR_LIST.lock().unwrap().push(path.clone());
     recurse_dirs(&path);
     
-    println!("\nNote: This software is issued under the MIT License. Understand what it means before use.\n");
+    println!("\nNote: This software is issued under the MIT or Apache 2.0 License. Understand what it means before use.\n");
     println!("\n################### BEGIN #########################\n");
-    println!("Your are using: {}", env::consts::OS); // Prints the current OS.
+    println!("{} system detected", env::consts::OS);
     println!("The source directory you provided : {:?}", args.source_dir);
     println!("The target director you provided : {:?}", args.target_dir);
     println!("This number of directories will be created in the target directory : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
     println!("This number of files will be created in the target directory : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
     println!("Total threads about to be used : {}", args.threads);
     println!("The Operation and the Mode you are about to perform on the source directory : {:?}, AES-256-{:?}", args.operation, args.mode);
+    
     match args.mode {
         Mode::ECB => {
             if let Ok(tmp) = fs::read_to_string(args.password_file) {
@@ -133,13 +154,41 @@ fn main() {
         },
         Mode::GCM => {
             let (password, salt) = if let Ok(tmp) = fs::read_to_string(args.password_file) {
+                
                 file = tmp.clone();
                 lines = file.trim().lines();
                 (lines.next().expect("Password is expected").to_owned(), lines.next().expect("Salt is expected in the password-file").to_owned())
+            
             } else {
-                println!("\nSorry, I did not find a password-file provided as a command-line options. You need to manually enter the credentials. Credentials will not be visible as you type.\n");
-                (prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned(),
-                prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned())
+                
+                println!("\nSorry, I did not find a password-file provided as a command-line option. Maybe you provided but forgot to pass the file with the '.omk' extension");
+                println!("Searching for a password file on your machine. It ends with the extension '.omk'");
+                
+                if let Some(o) = find_password_file() {
+                    println!("\nDo you wish to use this file?");
+                    if confirmation() == "Y" {
+                        if let Ok(k) = fs::read_to_string(o) {
+                            
+                            file = k.clone();
+                            lines = file.trim().lines();
+                            (lines.next().expect("Password is expected").to_owned(), lines.next().expect("Salt is expected in the password-file").to_owned()) 
+                        
+                        } else {
+
+                            println!("Failed the read the password file");
+                            println!("You need to manually enter the credentials. Credentials will not be visible as you type.");
+                            password_prompt()
+
+                        }
+                    } else {
+                        println!("You need to manually enter the credentials. Credentials will not be visible as you type.");
+                        password_prompt()
+                    }
+                   
+                } else {
+                    println!("You need to manually enter the credentials. Credentials will not be visible as you type.");
+                    password_prompt()
+                }
 
             };
 
@@ -186,22 +235,9 @@ USE AT YOUR OWN RISK!                                                           
                                                                                                                         |
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
- print!("Please type Y for yes, and N for no : ");
 
-    let _=stdout().flush();
 
-    stdin().read_line(&mut confirmation).expect("You entered incorrect response");
-
-    if let Some('\n')= confirmation.chars().next_back() {
-        confirmation.pop();
-    }
-    if let Some('\r')= confirmation.chars().next_back() {
-        confirmation.pop();
-    }
-
-    println!("\nYou typed: {}\n", confirmation);
-
-    if confirmation == "Y" {
+    if confirmation() == "Y" {
         let start_time = Instant::now();
         match args.operation {
             Operation::Encrypt => {

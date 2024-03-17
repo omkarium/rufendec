@@ -8,12 +8,19 @@
 
 Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption. This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
 
+### Features
+- Encrypt and decrypt multiple files using AES-256 GCM mode.
+- The program is multi-threaded. User can manually choose the number of threads.
+- The password file with ".omk" extension can be maintained in /etc, /home, /root or even the directory if you are a linux user. For windows user, the file can be placed either in the current directory or "C:/WINDOWS/SYSTEM32/config"
+- The default cipher mode used is GCM
+- PBKDF2-HMAC-SHA256 is used for the key derivation. The default iterations the program use is 60000
+
 ## How to Use
 This is a rust binary crate, so it must be obvious that you need to treat this as an executable. If you already know what Cargo is and how to use it, then go ahead and install and `Rufendec` by running the command `cargo install rufendec`
 
-Next, to execute rufendec try running the command `rufendec --help`. However, if you do not wish to install this program on your system permanently, then CD (change directory) into the cloned git repo and run `cargo run -- --help`.
+If you have the executable/binary file then try running the program using the command `rufendec --help`. However, if you do not wish to install this program on your system permanently, then CD (change directory) into the cloned git repo and run `cargo run -- --help`.
 
-Either way, the result of executing Rufendec will be like the below.
+Either way, the result of executing Rufendec will be something similar to the below.
 
 
 ```
@@ -26,8 +33,8 @@ Arguments:
 <TARGET_DIR>  Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go)
 
 Options:
--p, --password-file <PASSWORD_FILE>    Enter the Filename containing your password (and the "salt" in the 2nd line if you choose gcm) here. This is used to either Encrypt or Decrypt the Source Dir files
--o, --operation <OPERATION>            Enter the Operation you want to perform on the Source Dir using the password you provided [possible values: encrypt, decrypt]
+-p, --password-file <PASSWORD_FILE>    Enter the password file with an extension ".omk". The first line in the file must have the password, and If you choose mode=gcm then ensure to pass the "Salt" in the 2nd line [default: ]
+-o, --operation <OPERATION>            Enter the Operation you want to perform on the Source Dir [possible values: encrypt, decrypt]
 -t, --threads <THREADS>                Threads to speed up the execution [default: 8]
 -m, --mode <MODE>                      Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
 -i, --iterations <ITERATIONS>          Iterations --mode=gcm [default: 60000]
@@ -48,6 +55,13 @@ or
 ```
 rufendec ./source-dir ./target-dir --password-file=./passwordfile --operation=encrypt --mode=ecb
 ```
+
+Here is some other variations
+
+```
+rufendec ./source-dir ./target-dir -p ./passwordfile -o encrypt -m gcm -t 12 -i 100000
+```
+The mode, threads and iterations have default values, so you do not need to pass them. Also, if you maintain the password file in /etc, /home, /root or ".", then you do not need to pass the -p option.
 
 ### How to Decrypt
 Now imagine you have deleted the directory "source-dir" after successfully encrypting the files, but now you want the decrypted files and their respective parent directories and the structure back.
@@ -80,7 +94,7 @@ Kindly take backup of whatever you are encrypt first. I repeat, BACKUP BACKUP BA
 If you find any security vulnerabilities in code, please submit an issue.
 
 ---------------------------------------
-Three unbreakable rules you MUST follow
+Four unbreakable rules you MUST follow
 ---------------------------------------
 
 1. Make sure you are not decrypting a source folder which is not already encrypted. If done so, your source files WILL get corrupted.
@@ -93,24 +107,26 @@ Three unbreakable rules you MUST follow
 3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb, 
   then the program will generate your decrypted target files, but those WILL get corrupted filled with gibberish.
 
+4. If you have characters other than Alphanumeric (spaces are fine) in your folder and file names, then do not use them with this program. The program does not refuse to work with them, but your files will be misplaced in weird locations because you had weird characters in your file and folder names.
+
 Ensure you provide the correct files for the operation you choose
 
 USE AT YOUR OWN RISK!
 
-### Does this program require maintenance?
+---------------------------------------
+### Does this software require maintenance?
 
-Yes. The program do require maintenance but only in two cases. 
+Yes. This software do require maintenance, but only in two cases. 
 
 1. If the Dependent crates in Cargo.toml change versions, and the authors yank the older versions. But that is very unlikely to happen. Even so, you can always find a compiled release here on github releases.
 2. If someone finds a bug and reports it.
 
-Rust is relatively a safe bet when it comes to security and performance. Most CVE's are seen in "Not memory safe" programming languages like C, C++ and Java. Common issues seen using these unsafe languages are, Dangling pointers, Dead locks, Buffer overflow hex injection attacks etc. But Rust uses the concept of borrow checker and Ownership avoiding such cases by Design and moreover it is a Statically type compiled language. It is hard to write a unsafe Rust code unless you choose to.
 
 [//]: # (badges)
 
 [crate-image]: https://img.shields.io/crates/v/rufendec.svg
 [crate-link]: https://crates.io/crates/rufendec
-[license-image]: https://img.shields.io/badge/License-MIT-yellow.svg
+[license-image]: https://img.shields.io/badge/License-MIT_or_Apache_2.0-yellow.svg
 [rustc-image]: https://img.shields.io/badge/rustc-1.75+-blue.svg
 [downloads-image]: https://img.shields.io/crates/d/rufendec.svg
 [category-image]: https://img.shields.io/badge/category-File_encryption_software-darkred.svg
