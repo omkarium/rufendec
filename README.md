@@ -29,7 +29,7 @@ Options:
 -p, --password-file <PASSWORD_FILE>    Enter the Filename containing your password (and the "salt" in the 2nd line if you choose gcm) here. This is used to either Encrypt or Decrypt the Source Dir files
 -o, --operation <OPERATION>            Enter the Operation you want to perform on the Source Dir using the password you provided [possible values: encrypt, decrypt]
 -t, --threads <THREADS>                Threads to speed up the execution [default: 8]
--m, --mode <MODE>                      Provide the mode of Encryption here [possible values: ecb, gcm]
+-m, --mode <MODE>                      Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
 -i, --iterations <ITERATIONS>          Iterations --mode=gcm [default: 60000]
 -h, --help                             Print help
 -V, --version                          Print version
@@ -80,7 +80,7 @@ Kindly take backup of whatever you are encrypt first. I repeat, BACKUP BACKUP BA
 If you find any security vulnerabilities in code, please submit an issue.
 
 ---------------------------------------
-Three critical points before you use this
+Three unbreakable rules you MUST follow
 ---------------------------------------
 
 1. Make sure you are not decrypting a source folder which is not already encrypted. If done so, your source files WILL get corrupted.
@@ -97,9 +97,14 @@ Ensure you provide the correct files for the operation you choose
 
 USE AT YOUR OWN RISK!
 
-### Will I maintain this project?
+### Does this program require maintenance?
 
-I am just a Rust amateur, and I tend to forget what I have learnt even after writing complex stuff and spending days on it if I just take a few months break from coding. So, if any problem arises with this tool, I might not be able to immediately fix it or add a new feature, but I will try to support this to the best of my abilities and interest. I also believe that tools like these are one-off, like "Write once, compile and execute anywhere". This is not that kind of tool which needs constant maintenance. It only has to be maintained only if the Dependent crates in Cargo.toml change versions, and yank the older versions. But that is very unlikely to happen. Even so, you can always find a compiled release here on github releases.
+Yes. The program do require maintenance but only in two cases. 
+
+1. If the Dependent crates in Cargo.toml change versions, and the authors yank the older versions. But that is very unlikely to happen. Even so, you can always find a compiled release here on github releases.
+2. If someone finds a bug and reports it.
+
+Rust is relatively a safe bet when it comes to security and performance. Most CVE's are seen in "Not memory safe" programming languages like C, C++ and Java. Common issues seen using these unsafe languages are, Dangling pointers, Dead locks, Buffer overflow hex injection attacks etc. But Rust uses the concept of borrow checker and Ownership avoiding such cases by Design and moreover it is a Statically type compiled language. It is hard to write a unsafe Rust code unless you choose to.
 
 [//]: # (badges)
 

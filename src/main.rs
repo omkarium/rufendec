@@ -61,18 +61,18 @@
 mod operations;
 
 use clap::Parser;
-use std::{time::Instant, path::PathBuf, fs};
+use std::{time::Instant, path::PathBuf, fs, io::{stdin,stdout,Write}};
 use crate::operations::{
     ECB_32BYTE_KEY, GCM_32BYTE_KEY, DIR_LIST, FILE_LIST, FAILED_COUNT, SUCCESS_COUNT,
     create_dirs, decrypt_files, 
     encrypt_files, recurse_dirs
 };
 use crate::operations::{Operation, Mode};
-
+use rpassword::prompt_password;
 use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
 use aes_gcm::{Aes256Gcm, Key};
-
+use std::env;
 
 #[derive(Parser)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]
@@ -100,6 +100,24 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
+    let file: String;
+    let mut lines: std::str::Lines<>;
+    let mut confirmation: String=String::new();
+
+    
+    let path = PathBuf::from(args.source_dir.clone());
+    DIR_LIST.lock().unwrap().push(path.clone());
+    recurse_dirs(&path);
+    
+    println!("\nNote: This software is issued under the MIT License. Understand what it means before use.\n");
+    println!("\n################### BEGIN #########################\n");
+    println!("Your are using: {}", env::consts::OS); // Prints the current OS.
+    println!("The source directory you provided : {:?}", args.source_dir);
+    println!("The target director you provided : {:?}", args.target_dir);
+    println!("This number of directories will be created in the target directory : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
+    println!("This number of files will be created in the target directory : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
+    println!("Total threads about to be used : {}", args.threads);
+    println!("The Operation and the Mode you are about to perform on the source directory : {:?}, AES-256-{:?}", args.operation, args.mode);
     match args.mode {
         Mode::ECB => {
             if let Ok(tmp) = fs::read_to_string(args.password_file) {
@@ -132,55 +150,58 @@ fn main() {
             println!("\nGenerated a key based on PBKDF2 HMAC (SHA256) function ...");
 
         }
-    }
-    let path = PathBuf::from(args.source_dir.clone());
-    DIR_LIST.lock().unwrap().push(path.clone());
-    recurse_dirs(&path);
-    println!("\n################### BEGIN #########################");
-    println!("The source directory you provided : {:?}", args.source_dir);
-    println!("The target director you provided : {:?}", args.target_dir);
-    println!("This number of directories will be created in the target directory : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
-    println!("This number of files will be created in the target directory: {}", FILE_LIST.lock().unwrap().to_vec().capacity());
-    println!("Total threads about to be used : {}", args.threads);
-    println!("Operation and the Mode you are about to perform on the source directory : {:?} {:?}", args.operation, args.mode);
+    };
 
-    println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    use std::io::{stdin,stdout,Write};
-    let mut s=String::new();
-    println!("⚠️Warning ⚠️ Most file encryption softwares are destructive in nature. You MUST know what you are doing.
-         Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your source files.
-         
-         =======================================
-         Three critical points before you proceed
-         =======================================
 
-         1. Make sure you are not decrypting a source folder which is not already encrypted. 
-            If done so, your source files WILL get corrupted.
-            This program WILL not be able to pre-validate whether the files you have provided as input are either encrypted or decrypted.
 
-         2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for example binary files/executables.
-            It will either create or skip such files, but ensure you don't try to encrypt anything as such in the first place.
-            If done so, the later you decrypt them, the binaries may or may not work.
+    println!("\n
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#### EXTREME WARNING ####                                                                                               |
+                                                                                                                        |
+Most file encryption softwares are destructive in nature. You MUST know what you are doing.                             |
+                                                                                                                        |
+Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your files.         |
+                                                                                                                        |
+=======================================                                                                                 |
+Three unbreakable rules you MUST follow                                                                                 |
+=======================================                                                                                 |
+                                                                                                                        |
+1. Make sure you are not decrypting a source folder which is not already encrypted.                                     |
+   If done so, your source files WILL get corrupted.                                                                    |
+   This program WILL not be able to pre-validate whether the files you have provided as input                           |
+   are either encrypted or decrypted.                                                                                   |
+                                                                                                                        |
+2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for                              |
+   example binary files/executables.                                                                                    |
+   It will either create or skip such files, but ensure you don't try to encrypt anything as                            |
+   such in the first place. If done so, the later you decrypt them, the binaries may or may not work.                   |
+                                                                                                                        |
+3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb,                               |
+   then the program will generate your decrypted target files, but those WILL get                                       |
+   corrupted filled with gibberish.                                                                                     |
+                                                                                                                        |
+Ensure you provide the correct files for the operation you choose                                                       |
+                                                                                                                        |
+USE AT YOUR OWN RISK!                                                                                                   |
+                                                                                                                        |
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
-         3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb, 
-            then the program will generate your decrypted target files, but those WILL get corrupted filled with gibberish.
-         
-         Ensure you provide the correct files for the operation you choose
-         
-         USE AT YOUR OWN RISK!");
-    println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    print!("Please type Y for yes, and N for no : ");
+ print!("Please type Y for yes, and N for no : ");
+
     let _=stdout().flush();
-    stdin().read_line(&mut s).expect("You entered incorrect response");
-    if let Some('\n')=s.chars().next_back() {
-        s.pop();
-    }
-    if let Some('\r')=s.chars().next_back() {
-        s.pop();
-    }
-    println!("You typed: {}",s);
 
-    if s == "Y" {
+    stdin().read_line(&mut confirmation).expect("You entered incorrect response");
+
+    if let Some('\n')= confirmation.chars().next_back() {
+        confirmation.pop();
+    }
+    if let Some('\r')= confirmation.chars().next_back() {
+        confirmation.pop();
+    }
+
+    println!("\nYou typed: {}\n", confirmation);
+
+    if confirmation == "Y" {
         let start_time = Instant::now();
         match args.operation {
             Operation::Encrypt => {
