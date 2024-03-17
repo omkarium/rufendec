@@ -10,7 +10,10 @@ use byte_aes::Aes256Cryptor;
 use lazy_static::lazy_static;
 use rayon;
 pub use std::sync::Mutex;
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, time::Duration};
+use walkdir::WalkDir;
+use std::env;
+use indicatif::{ProgressBar};
 
 lazy_static! {
     pub static ref ECB_32BYTE_KEY: Mutex<String> = Mutex::new(String::new());
@@ -45,6 +48,7 @@ pub fn recurse_dirs(item: &PathBuf) {
         if let Ok(paths) = fs::read_dir(item) {
 
             for path in paths {
+
                 let metadata = path.as_ref().unwrap().metadata();
                 let entry = path.as_ref().unwrap();
 
@@ -55,11 +59,44 @@ pub fn recurse_dirs(item: &PathBuf) {
                 } else {
                     FILE_LIST.lock().unwrap().push(entry.path());
                 }
-
-            }
-
+            } // end of for loop
         }
     }
+}
+
+pub fn find_password_file() -> Option<PathBuf> {
+
+    let os_type = env::consts::OS;
+    let target_dir = match os_type {
+        "linux" => vec!["/home", "/etc", "/root", "./"],
+        "windows" => vec!["C:/WINDOWS/SYSTEM32/config", "."],
+        _ => vec!["."]
+    };
+
+    for i in target_dir {
+        let file_list: Vec<Result<walkdir::DirEntry, walkdir::Error>> = WalkDir::new(i).into_iter().collect();
+        println!("\nSearching this many files : {:?}. Please be patient", file_list.capacity());
+        let bar = ProgressBar::new_spinner();
+        for entry in WalkDir::new(i)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok()) {
+            
+            bar.enable_steady_tick(Duration::from_millis(100));
+
+            let f_name = entry.file_name().to_string_lossy();
+
+            if f_name.ends_with(".omk") {
+                println!("\nFound this => {:?}", entry.clone().into_path());
+                let file_path: PathBuf = entry.into_path().as_path().to_owned();
+                return Some(file_path);
+            }
+        } // end of inner for loop
+    }
+        return None;
+
+    
+
 }
 
 pub fn create_dirs(

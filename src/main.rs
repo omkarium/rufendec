@@ -212,7 +212,7 @@ Most file encryption softwares are destructive in nature. You MUST know what you
 Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your files.         |
                                                                                                                         |
 =======================================                                                                                 |
-Three unbreakable rules you MUST follow                                                                                 |
+Four unbreakable rules you MUST follow                                                                                  |
 =======================================                                                                                 |
                                                                                                                         |
 1. Make sure you are not decrypting a source folder which is not already encrypted.                                     |
@@ -228,6 +228,10 @@ Three unbreakable rules you MUST follow                                         
 3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb,                               |
    then the program will generate your decrypted target files, but those WILL get                                       |
    corrupted filled with gibberish.                                                                                     |
+                                                                                                                        | 
+4. If you have characters other than Alphanumeric (spaces are fine) in your folder and file names,                      |
+   then do not use them with this program. The program does not refuse to work with them,                               |
+   but your files will be misplaced in weird locations because you had weird characters in your file and folder names.  |
                                                                                                                         |
 Ensure you provide the correct files for the operation you choose                                                       |
                                                                                                                         |
