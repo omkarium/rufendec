@@ -63,14 +63,14 @@ mod operations;
 use clap::Parser;
 use std::{time::Instant, path::PathBuf, fs, io::{stdin,stdout,Write}};
 use crate::operations::{
-    create_dirs, decrypt_files, encrypt_files, find_password_file, recurse_dirs, DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT
+    create_dirs, decrypt_files, encrypt_files, find_password_file, pre_validate_source, recurse_dirs, DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT
 };
 use crate::operations::{Operation, Mode};
 use rpassword::prompt_password;
 use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
 use aes_gcm::{Aes256Gcm, Key};
-use std::env;
+use std::{env, process};
 
 #[derive(Parser)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]
@@ -127,6 +127,13 @@ fn main() {
     let path = PathBuf::from(args.source_dir.clone());
 
     DIR_LIST.lock().unwrap().push(path.clone());
+
+    if let Some(file) = pre_validate_source(&path){
+        println!("\nYikes! Found an encrypted file => {:?}, and there could be several. 
+Please ensure you are not providing already encrypted files. Doing double encryption won't help", file);
+        process::exit(1);
+    }
+
     recurse_dirs(&path);
     
     println!("\nNote: This software is issued under the MIT or Apache 2.0 License. Understand what it means before use.\n");
@@ -215,10 +222,7 @@ Before you encrypt files, kindly take this as a strict caution and don't forget 
 Four unbreakable rules you MUST follow                                                                                  |
 =======================================                                                                                 |
                                                                                                                         |
-1. Make sure you are not decrypting a source folder which is not already encrypted.                                     |
-   If done so, your source files WILL get corrupted.                                                                    |
-   This program WILL not be able to pre-validate whether the files you have provided as input                           |
-   are either encrypted or decrypted.                                                                                   |
+1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.                                                                              |
                                                                                                                         |
 2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for                              |
    example binary files/executables.                                                                                    |

