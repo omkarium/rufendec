@@ -9,11 +9,13 @@
 Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption. This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
 
 ### Features
-- Encrypt and decrypt multiple files using AES-256 GCM mode.
-- The program is multi-threaded. User can manually choose the number of threads.
-- The password file with ".omk" extension can be maintained in /etc, /home, /root or even the directory if you are a linux user. For windows user, the file can be placed either in the current directory or "C:/WINDOWS/SYSTEM32/config"
-- The default cipher mode used is GCM
+- Encrypt and decrypt multiple files using AES-256 GCM mode. GCM is chosen as the default mode.
+- The program is multi-threaded, so the user can manually choose the number of threads.
+- The password file with ".omk" extension can be maintained in /etc, /home, /root or even the current directory (".") if you are a linux user. For windows, the file can be placed either in the current directory or "C:/WINDOWS/SYSTEM32/config"
 - PBKDF2-HMAC-SHA256 is used for the key derivation. The default iterations the program use is 60000
+- Program refuse to encrypt already encrypted source files as a safe guard mechanism from double encryption.
+- In place file encryption and decryption is possible if the target directory is not specified as a Command line argument.
+- Source files can be deleted by passing the "-d" option.
 
 ## How to Use
 This is a rust binary crate, so it must be obvious that you need to treat this as an executable. If you already know what Cargo is and how to use it, then go ahead and install and `Rufendec` by running the command `cargo install rufendec`
@@ -26,13 +28,15 @@ Either way, the result of executing Rufendec will be something similar to the be
 ```
 Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption. This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
 
-Usage: rufendec [OPTIONS] --password-file <PASSWORD_FILE> --operation <OPERATION> --mode <MODE> <SOURCE_DIR> <TARGET_DIR>
+Usage: rufendec [OPTIONS] --operation <OPERATION> <SOURCE_DIR> [TARGET_DIR]
 
 Arguments:
 <SOURCE_DIR>  Enter the Source Dir here (This is the directory you want to either Encrypt or Decrypt)
-<TARGET_DIR>  Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go)
+[TARGET_DIR]  Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go). But if you do not provide this, the target files will be placed in the Source Dir. To delete the source files make sure you pass option -d
+
 
 Options:
+-d, --delete-src                       Pass this option to delete the source files in the Source Dir
 -p, --password-file <PASSWORD_FILE>    Enter the password file with an extension ".omk". The first line in the file must have the password, and If you choose mode=gcm then ensure to pass the "Salt" in the 2nd line [default: ]
 -o, --operation <OPERATION>            Enter the Operation you want to perform on the Source Dir [possible values: encrypt, decrypt]
 -t, --threads <THREADS>                Threads to speed up the execution [default: 8]
@@ -64,8 +68,19 @@ rufendec ./source-dir ./target-dir --password-file ./passwordfile --operation en
 OR
 
 rufendec ./source-dir ./target-dir -p ./passwordfile -o encrypt -m gcm -t 12 -i 100000
+
+OR
+
+rufendec ./source-dir ./target-dir -o encrypt
+
+OR
+
+rufendec ./source-dir -o encrypt
+
 ```
-The mode, threads and iterations have default values, so you do not need to pass them. Also, if you maintain the password file in /etc, /home, /root or ".", then you do not need to pass the -p option.
+The mode, threads and iterations have default values, so you do not need to pass them. Also, if you maintain the password file in /etc, /home, /root, ".", "..", "../../", then you do not need to pass the -p option.
+
+If you do not pass options like -m, -t, -i then the default values will be chosen.
 
 ### How to Decrypt
 Now imagine you have deleted the directory "source-dir" after successfully encrypting the files, but now you want the decrypted files and their respective parent directories and the structure back.
@@ -78,7 +93,9 @@ or
 ```
 rufendec ./target-dir ./source-dir --password-file=./passwordfile --operation=decrypt --mode=ecb
 ```
-In the above examples, the names `source-dir` and `target-dir` are arbitrary. You can use any names to your source and target directories. The target directory is something which is always created if not created already.
+In the above examples, the names `source-dir` and `target-dir` are arbitrary. You can use any names to your source and target directories. The target directory is created if not created already.
+
+---
 
 *Also, when you choose GCM mode, in the password file, you have to pass a salt in the 2nd line after specifying the password in th 1st line. But if you go for ECB mode, you don't need to specify a salt. In either case, the password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2*
 
@@ -88,6 +105,12 @@ Som3RandPa$$wdOfAnyLength
 SomethingSaltIGiveOfAnyLength
 ```
 ---------------------------------------
+
+### In-Place Encryption and Decryption
+
+If you do not wish to create a separate target directory whether it is to place the encrypted or decrypted files, then you should not pass the [TARGET_DIR] argument in the command line. Along with that, you must send the `-d` option to delete the source files in the <SOURCE_DIR>
+
+--------------------------------------
 
 ### ⚠️ Warning ⚠️
 
@@ -101,8 +124,7 @@ If you find any security vulnerabilities in code, please submit an issue private
 Four unbreakable rules you MUST follow
 ---------------------------------------
 
-1. Make sure you are not decrypting a source folder which is not already encrypted. If done so, your source files WILL get corrupted.
-   This program WILL not be able to pre-validate whether the files you have provided as input are either encrypted or decrypted. 
+1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.
 
 2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for example binary files/executables.
    It will either create or skip such files, but ensure you don't try to encrypt anything as such in the first place.

@@ -2,8 +2,8 @@
 //! 
 //! #### Developer: Venkatesh Omkaram
 //! 
-//! Rufendec aka (Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders
-//! and retain the complete directory structure of the source directory files you provide into the target directory.
+//! Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption. 
+//! This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
 //! 
 //! ## How to Use
 //! This is a binary crate, so its obvious that you need to use this as an executable. 
@@ -13,19 +13,23 @@
 //! ### Example
 //! If you run cargo run -- --help or ./rufendec --help. You will get this response
 //! ```
-//! Rufendec aka (Rust File Encryptor-Decryptor) is a CLI utility tool which helps you to do AES-256 Encryption and Decryption on specified directories/folders and retain the complete directory structure of the source directory files you provide into the target directory.
-//! 
-//! Usage: rufendec [OPTIONS] --password-file <PASSWORD_FILE> --operation <OPERATION> --mode <MODE> <SOURCE_DIR> <TARGET_DIR>
-//!
+//! Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption. 
+//! This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. 
+//! Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
+
+//! Usage: rufendec [OPTIONS] --operation <OPERATION> <SOURCE_DIR> [TARGET_DIR]
+
 //! Arguments:
 //! <SOURCE_DIR>  Enter the Source Dir here (This is the directory you want to either Encrypt or Decrypt)
-//! <TARGET_DIR>  Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go)
-//!
+//! [TARGET_DIR]  Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go). But if you do not provide this, the target files will be placed in the Source Dir. To delete the source files make sure you pass option -d
+
+
 //! Options:
-//! -p, --password-file <PASSWORD_FILE>    Enter the Filename containing your password (and the "salt" in the 2nd line if you choose gcm) here. This is used to either Encrypt or Decrypt the Source Dir files
-//! -o, --operation <OPERATION>            Enter the Operation you want to perform on the Source Dir using the password you provided [possible values: encrypt, decrypt]
+//! -d, --delete-src                       Pass this option to delete the source files in the Source Dir
+//! -p, --password-file <PASSWORD_FILE>    Enter the password file with an extension ".omk". The first line in the file must have the password, and If you choose mode=gcm then ensure to pass the "Salt" in the 2nd line [default: ]
+//! -o, --operation <OPERATION>            Enter the Operation you want to perform on the Source Dir [possible values: encrypt, decrypt]
 //! -t, --threads <THREADS>                Threads to speed up the execution [default: 8]
-//! -m, --mode <MODE>                      Provide the mode of Encryption here [possible values: ecb, gcm]
+//! -m, --mode <MODE>                      Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
 //! -i, --iterations <ITERATIONS>          Iterations --mode=gcm [default: 60000]
 //! -h, --help                             Print help
 //! -V, --version                          Print version
@@ -33,20 +37,13 @@
 //! for example, say if you want to encrypt all the files in directory say `./source-dir` using a password (example password: **Thisi/MyKeyT0Encrypt**) which is maintained in a passwordfile, and create a target directory say `./target-dir` which will hold the encrypted files
 //! by **retaining the complete folder structure of the source-dir and its sub-directories in the target-dir**, then you can run the command like this
 //! ```
-//! cargo run ../source-dir ../target-dir --password-file=../passwordfile --operation=encrypt --mode=ecb
+//! cargo run ../source-dir ../target-dir --password-file=../passwordfile --operation=encrypt --mode=gcm
 //! ```
-//! or
-//! ```
-//! ./rufendec ./source-dir ./target-dir --password-file=./passwordfile --operation=encrypt --mode=ecb
-//! ```
+//! 
 //! Next, say you deleted the source-dir after encryption, and now you want the decrypted files and their respective directory structure back.
 //! To decrypt the encrypted files inside the target-dir you currently have, just run the below command. Once finished, your original files will be back in your source-dir
 //! ```
-//! cargo run ../target-dir ../source-dir --password-file=../passwordfile --operation=decrypt --mode=ecb
-//! ```
-//! or
-//! ```
-//! ./rufendec ./target-dir ./source-dir --password-file=./passwordfile --operation=decrypt --mode=ecb
+//! cargo run ../target-dir ../source-dir --password-file=../passwordfile --operation=decrypt --mode=gcm
 //! ```
 //! In the above examples, the names `source-dir` and `target-dir` are arbitrary. You can use any names to your source and target directories.
 //! 
@@ -77,8 +74,13 @@ use std::{env, process};
 struct Args {
     /// Enter the Source Dir here (This is the directory you want to either Encrypt or Decrypt)
     source_dir: String,
-    /// Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go)
-    target_dir: String,
+    /// Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go).
+    /// But if you do not provide this, the target files will be placed in the Source Dir. 
+    /// To delete the source files make sure you pass option -d
+    target_dir: Option<String>,
+    /// Pass this option to delete the source files in the Source Dir
+    #[clap(short, long, default_value_t = false)]
+    delete_src: bool, 
     /// Enter the password file with an extension ".omk". The first line in the file must have the password, and If you choose mode=gcm then ensure to pass the "Salt" in the 2nd line
     #[arg(short, long, default_value_t = String::new())]
     password_file: String,
@@ -94,7 +96,9 @@ struct Args {
     /// Iterations for PBKDF2
     #[clap(short, long, default_value_t = 60_000)]
     iterations: u32,
+
 }
+
 fn password_prompt() -> (String, String) {
     (prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned(),
     prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned())
@@ -127,12 +131,17 @@ fn main() {
     let path = PathBuf::from(args.source_dir.clone());
 
     DIR_LIST.lock().unwrap().push(path.clone());
-
-    if let Some(file) = pre_validate_source(&path){
-        println!("\nYikes! Found an encrypted file => {:?}, and there could be several. 
+    match args.operation.clone() {
+        Operation::Encrypt => {
+            if let Some(file) = pre_validate_source(&path){
+                println!("\nYikes! Found an encrypted file => {:?}, and there could be several. 
 Please ensure you are not providing already encrypted files. Doing double encryption won't help", file);
-        process::exit(1);
+                process::exit(1);
+            };
+        },
+        Operation::Decrypt => {}
     }
+    
 
     recurse_dirs(&path);
     
@@ -141,11 +150,13 @@ Please ensure you are not providing already encrypted files. Doing double encryp
     println!("{} system detected", env::consts::OS);
     println!("The source directory you provided : {:?}", args.source_dir);
     println!("The target director you provided : {:?}", args.target_dir);
+    println!("Delete the source files? : {:?}", args.delete_src);
     println!("This number of directories will be created in the target directory : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
     println!("This number of files will be created in the target directory : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
     println!("Total threads about to be used : {}", args.threads);
     println!("The Operation and the Mode you are about to perform on the source directory : {:?}, AES-256-{:?}", args.operation, args.mode);
-    
+    println!("The encrypted files MUST be of '.enom' extension");
+
     match args.mode {
         Mode::ECB => {
             if let Ok(tmp) = fs::read_to_string(args.password_file) {
@@ -208,13 +219,18 @@ Please ensure you are not providing already encrypted files. Doing double encryp
         }
     };
 
+    let target_dir = match args.target_dir {
+        Some(f) => f,
+        None => args.source_dir.clone()
+    };
+
 
 
     println!("\n
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #### EXTREME WARNING ####                                                                                               |
                                                                                                                         |
-Most file encryption softwares are destructive in nature. You MUST know what you are doing.                             |
+Most file encryption programs are destructive in nature. You MUST know what you are doing.                              |
                                                                                                                         |
 Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your files.         |
                                                                                                                         |
@@ -222,7 +238,7 @@ Before you encrypt files, kindly take this as a strict caution and don't forget 
 Four unbreakable rules you MUST follow                                                                                  |
 =======================================                                                                                 |
                                                                                                                         |
-1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.                                                                              |
+1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.                        |
                                                                                                                         |
 2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for                              |
    example binary files/executables.                                                                                    |
@@ -230,8 +246,8 @@ Four unbreakable rules you MUST follow                                          
    such in the first place. If done so, the later you decrypt them, the binaries may or may not work.                   |
                                                                                                                         |
 3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb,                               |
-   then the program will generate your decrypted target files, but those WILL get                                       |
-   corrupted filled with gibberish.                                                                                     |
+   then the program will generate your decrypted target files, but those files WILL get                                 |
+   corrupted by getting filled with gibberish.                                                                          |
                                                                                                                         | 
 4. If you have characters other than Alphanumeric (spaces are fine) in your folder and file names,                      |
    then do not use them with this program. The program does not refuse to work with them,                               |
@@ -249,12 +265,12 @@ USE AT YOUR OWN RISK!                                                           
         let start_time = Instant::now();
         match args.operation {
             Operation::Encrypt => {
-                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Encrypt, args.source_dir.as_str(), args.target_dir.as_str());
-                encrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), args.target_dir.as_str(), args.mode);
+                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Encrypt, args.source_dir.as_str(), target_dir.as_str());
+                encrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), target_dir.as_str(), args.mode, args.delete_src);
             },
             Operation::Decrypt => {
-                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Decrypt, args.source_dir.as_str(), args.target_dir.as_str());
-                decrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), args.target_dir.as_str(), args.mode);
+                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Decrypt, args.source_dir.as_str(), target_dir.as_str());
+                decrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), target_dir.as_str(), args.mode, args.delete_src);
             }
         }
         let elapsed = Some(start_time.elapsed());

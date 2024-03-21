@@ -144,6 +144,7 @@ pub fn encrypt_files(
     source_dir_name: &str,
     target_dir_name: &str,
     mode: Mode,
+    delete_src: bool
 ) {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(thread_count)
@@ -177,6 +178,12 @@ pub fn encrypt_files(
                                 println!("Encrypted file :: {}", new_file_name);
                                 
                                 let _ = fs::write(new_file_name, encrypted_bytes);
+
+                                if delete_src {
+                                    if let Err(e) = fs::remove_file(file) {
+                                        println!("Failed to delete the file :: {}", e);
+                                    }
+                                }
                             }
 
                             Mode::GCM => {
@@ -202,6 +209,13 @@ pub fn encrypt_files(
                                             [encrypted_bytes, nonce.to_vec()].concat(),
                                         );
                                         *SUCCESS_COUNT.lock().unwrap() += 1;
+
+                                        if delete_src {
+                                            if let Err(e) = fs::remove_file(file) {
+                                                println!("Failed to delete the file :: {}", e);
+                                            }
+                                        }
+
                                     }
                                     Err(_) => {
                                         *FAILED_COUNT.lock().unwrap() += 1;
@@ -222,6 +236,7 @@ pub fn decrypt_files(
     source_dir_name: &str,
     target_dir_name: &str,
     mode: Mode,
+    delete_src: bool
 ) {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(thread_count)
@@ -255,9 +270,19 @@ pub fn decrypt_files(
                                         .replace(source_dir_name, target_dir_name)
                                         .replace(".enom", "")
                                         .to_string();
+
                                     println!("Decrypted file :: {}", new_file_name);
+
                                     let _ = fs::write(new_file_name, res);
+
                                     *SUCCESS_COUNT.lock().unwrap() += 1;
+
+                                    if delete_src {
+                                        if let Err(e) = fs::remove_file(file) {
+                                            println!("Failed to delete the file :: {}", e);
+                                        }
+                                    }
+
                                 }
                                 Err(_) => {
                                     *FAILED_COUNT.lock().unwrap() += 1;
@@ -287,6 +312,12 @@ pub fn decrypt_files(
                                 println!("Decrypted file :: {}", new_file_name);
                                 
                                 let _ = fs::write(new_file_name, decrypted_bytes);
+
+                                if delete_src {
+                                    if let Err(e) = fs::remove_file(file) {
+                                        println!("Failed to delete the file :: {}", e);
+                                    }
+                                }
                             }
                         };
                     }
