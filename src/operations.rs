@@ -10,10 +10,10 @@ use byte_aes::Aes256Cryptor;
 use lazy_static::lazy_static;
 use rayon;
 pub use std::sync::Mutex;
-use std::{fs, path::PathBuf, time::Duration};
+use std::{fmt::Write, fs, path::PathBuf, sync::Arc, time::Duration};
 use walkdir::WalkDir;
 use std::env;
-use indicatif::{ProgressBar};
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
 lazy_static! {
     pub static ref ECB_32BYTE_KEY: Mutex<String> = Mutex::new(String::new());
@@ -23,6 +23,15 @@ lazy_static! {
     pub static ref FILE_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     pub static ref FAILED_COUNT: Mutex<u16> = Mutex::new(0);
     pub static ref SUCCESS_COUNT: Mutex<u16> = Mutex::new(0);
+    pub static ref VERBOSE: Mutex<bool> = Mutex::new(false);
+}
+
+macro_rules! logger {
+    ($value: literal, $item: expr) => {
+        if *VERBOSE.lock().unwrap() {
+            println!($value, $item);}
+    
+        };
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -42,6 +51,20 @@ impl std::fmt::Display for Mode {
         write!(f, "{:?}", self)
     }
 }
+
+pub fn progress_bar(file_count: u64) -> Option<ProgressBar> {
+    if !(*VERBOSE.lock().unwrap()) {
+        let pb = ProgressBar::new(file_count);
+
+        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos} /{percent}% files completed ({eta_precise})")
+            .unwrap()
+            .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+            .progress_chars("#>-"));
+        return Some(pb)
+    }
+    None
+}
+
 
 pub fn pre_validate_source(source_dir: &PathBuf) -> Option<PathBuf> {
     println!("\n\nValidating if the source directory has any encrypted files");
@@ -132,7 +155,7 @@ pub fn create_dirs(
                 .replace(source_dir_name, target_dir_name),
         };
 
-        println!("Directory created => {:?}", destination);
+        logger!("Directory created => {:?}", destination);
         
         let _ = fs::create_dir_all(destination);
     }
@@ -146,13 +169,25 @@ pub fn encrypt_files(
     mode: Mode,
     delete_src: bool
 ) {
+    let (pb, pb_bool): (ProgressBar, bool) = match progress_bar(file_list.capacity() as u64) {
+        Some(pb) => (pb, true),
+        None => (ProgressBar::new(0), false)
+    };
+    
+    let pb_increment: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
+
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(thread_count)
         .build()
         .unwrap();
+    
     pool.install(|| {
         rayon::scope(|s| {
             for file in file_list {
+
+                let pb = pb.clone(); // Unable to avoid these clone when there is Progress Bar use
+                let pb_increment: Arc<Mutex<u64>> = pb_increment.clone();
+
                 s.spawn(move |_| {
                     if let Ok(file_data) = fs::read(file.clone()) {
                         match mode {
@@ -175,14 +210,19 @@ pub fn encrypt_files(
                                     .to_string()
                                     + ".enom";
 
-                                println!("Encrypted file :: {}", new_file_name);
+                                logger!("Encrypted file :: {}", new_file_name);
                                 
                                 let _ = fs::write(new_file_name, encrypted_bytes);
 
                                 if delete_src {
                                     if let Err(e) = fs::remove_file(file) {
-                                        println!("Failed to delete the file :: {}", e);
+                                        logger!("Failed to delete the file :: {}", e);
                                     }
+                                }
+
+                                if pb_bool {
+                                    pb.set_position(*pb_increment.lock().unwrap());
+                                    *pb_increment.lock().unwrap()+=1;
                                 }
                             }
 
@@ -202,7 +242,7 @@ pub fn encrypt_files(
                                             .to_string()
                                             + ".enom";
                                         
-                                        println!("Encrypted file :: {}", new_file_name);
+                                        logger!("Encrypted file :: {}", new_file_name);
                                         
                                         let _ = fs::write(
                                             new_file_name,
@@ -212,8 +252,13 @@ pub fn encrypt_files(
 
                                         if delete_src {
                                             if let Err(e) = fs::remove_file(file) {
-                                                println!("Failed to delete the file :: {}", e);
+                                                logger!("Failed to delete the file :: {}", e);
                                             }
+                                        }
+                                        
+                                        if pb_bool {
+                                            pb.set_position(*pb_increment.lock().unwrap());
+                                            *pb_increment.lock().unwrap()+=1;
                                         }
 
                                     }
@@ -238,13 +283,25 @@ pub fn decrypt_files(
     mode: Mode,
     delete_src: bool
 ) {
+    let (pb, pb_bool): (ProgressBar, bool) = match progress_bar(file_list.capacity() as u64) {
+        Some(pb) => (pb, true),
+        None => (ProgressBar::new(0), false)
+    };
+    
+    let pb_increment: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
+
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(thread_count)
         .build()
         .unwrap();
+    
     pool.install(|| {
         rayon::scope(|s| {
             for file in file_list {
+
+                let pb = pb.clone(); // Unable to avoid these clone when there is Progress Bar use
+                let pb_increment: Arc<Mutex<u64>> = pb_increment.clone();
+
                 s.spawn(move |_| {
                     if let Ok(file_data) = fs::read(file.clone()) {
                         if let Mode::GCM = mode {
@@ -271,7 +328,7 @@ pub fn decrypt_files(
                                         .replace(".enom", "")
                                         .to_string();
 
-                                    println!("Decrypted file :: {}", new_file_name);
+                                    logger!("Decrypted file :: {}", new_file_name);
 
                                     let _ = fs::write(new_file_name, res);
 
@@ -279,8 +336,13 @@ pub fn decrypt_files(
 
                                     if delete_src {
                                         if let Err(e) = fs::remove_file(file) {
-                                            println!("Failed to delete the file :: {}", e);
+                                            logger!("Failed to delete the file :: {}", e);
                                         }
+                                    }
+
+                                    if pb_bool {
+                                        pb.set_position(*pb_increment.lock().unwrap());
+                                        *pb_increment.lock().unwrap()+=1;
                                     }
 
                                 }
@@ -309,15 +371,21 @@ pub fn decrypt_files(
                                     .replace(".enom", "")
                                     .to_string();
                                 
-                                println!("Decrypted file :: {}", new_file_name);
+                                logger!("Decrypted file :: {}", new_file_name);
                                 
                                 let _ = fs::write(new_file_name, decrypted_bytes);
 
                                 if delete_src {
                                     if let Err(e) = fs::remove_file(file) {
-                                        println!("Failed to delete the file :: {}", e);
+                                        logger!("Failed to delete the file :: {}", e);
                                     }
                                 }
+
+                                if pb_bool {
+                                    pb.set_position(*pb_increment.lock().unwrap());
+                                    *pb_increment.lock().unwrap()+=1;
+                                }
+
                             }
                         };
                     }

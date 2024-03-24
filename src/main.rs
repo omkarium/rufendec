@@ -31,6 +31,7 @@
 //! -t, --threads <THREADS>                Threads to speed up the execution [default: 8]
 //! -m, --mode <MODE>                      Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
 //! -i, --iterations <ITERATIONS>          Iterations --mode=gcm [default: 60000]
+//! -v, --verbose                          Print verbose output
 //! -h, --help                             Print help
 //! -V, --version                          Print version
 //! ```
@@ -60,7 +61,7 @@ mod operations;
 use clap::Parser;
 use std::{time::Instant, path::PathBuf, fs, io::{stdin,stdout,Write}};
 use crate::operations::{
-    create_dirs, decrypt_files, encrypt_files, find_password_file, pre_validate_source, recurse_dirs, DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT
+    create_dirs, decrypt_files, encrypt_files, find_password_file, pre_validate_source, recurse_dirs, DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT, VERBOSE
 };
 use crate::operations::{Operation, Mode};
 use rpassword::prompt_password;
@@ -96,6 +97,9 @@ struct Args {
     /// Iterations for PBKDF2
     #[clap(short, long, default_value_t = 60_000)]
     iterations: u32,
+    /// Print verbose output
+    #[clap(short, long, default_value_t = false)]
+    verbose: bool    
 
 }
 
@@ -130,6 +134,8 @@ fn main() {
     let mut lines: std::str::Lines<>;
     let path = PathBuf::from(args.source_dir.clone());
 
+    *VERBOSE.lock().unwrap() = args.verbose;
+
     DIR_LIST.lock().unwrap().push(path.clone());
     match args.operation.clone() {
         Operation::Encrypt => {
@@ -146,16 +152,18 @@ Please ensure you are not providing already encrypted files. Doing double encryp
     recurse_dirs(&path);
     
     println!("\nNote: This software is issued under the MIT or Apache 2.0 License. Understand what it means before use.\n");
-    println!("\n################### BEGIN #########################\n");
+    println!("\n################### Execution Begin #########################\n");
+    println!("\n**** Operational Info ****\n");
     println!("{} system detected", env::consts::OS);
-    println!("The source directory you provided : {:?}", args.source_dir);
-    println!("The target director you provided : {:?}", args.target_dir);
+    println!("The source directory you provided : {}", args.source_dir);
+    println!("The target director you provided : {}", args.target_dir.as_ref().unwrap_or(&"Not Specified".to_string()));
     println!("Delete the source files? : {:?}", args.delete_src);
     println!("This number of directories will be created in the target directory : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
     println!("This number of files will be created in the target directory : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
     println!("Total threads about to be used : {}", args.threads);
     println!("The Operation and the Mode you are about to perform on the source directory : {:?}, AES-256-{:?}", args.operation, args.mode);
     println!("The encrypted files MUST be of '.enom' extension");
+    println!("\n**************************\n");
 
     match args.mode {
         Mode::ECB => {

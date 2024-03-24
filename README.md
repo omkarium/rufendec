@@ -16,6 +16,7 @@ Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed 
 - Program refuse to encrypt already encrypted source files as a safe guard mechanism from double encryption.
 - In place file encryption and decryption is possible if the target directory is not specified as a Command line argument.
 - Source files can be deleted by passing the "-d" option.
+- Verbose output using "-v" option.
 
 ## How to Use
 This is a rust binary crate, so it must be obvious that you need to treat this as an executable. If you already know what Cargo is and how to use it, then go ahead and install and `Rufendec` by running the command `cargo install rufendec`
@@ -42,6 +43,7 @@ Options:
 -t, --threads <THREADS>                Threads to speed up the execution [default: 8]
 -m, --mode <MODE>                      Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
 -i, --iterations <ITERATIONS>          Iterations --mode=gcm [default: 60000]
+-v, --verbose                          Print verbose output
 -h, --help                             Print help
 -V, --version                          Print version
 ```
@@ -79,8 +81,6 @@ rufendec ./source-dir -o encrypt
 
 ```
 The mode, threads and iterations have default values, so you do not need to pass them. Also, if you maintain the password file in /etc, /home, /root, ".", "..", "../../", then you do not need to pass the -p option.
-
-If you do not pass options like -m, -t, -i then the default values will be chosen.
 
 ### How to Decrypt
 Now imagine you have deleted the directory "source-dir" after successfully encrypting the files, but now you want the decrypted files and their respective parent directories and the structure back.
