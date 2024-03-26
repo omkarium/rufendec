@@ -66,8 +66,21 @@ pub fn progress_bar(file_count: u64) -> Option<ProgressBar> {
 }
 
 
-pub fn pre_validate_source(source_dir: &PathBuf) -> Option<PathBuf> {
-    println!("\n\nValidating if the source directory has any encrypted files");
+pub fn pre_validate_source(source_dir: &PathBuf, operation: &Operation) {
+    let illegal_locations = 
+        ["/", "/root", "/home", "/boot", "/usr", "/lib", "/lib64", "/lib32", 
+        "/libx32", "/mnt", "/dev", "/sys", "/run", "/bin", "/sbin", "/proc", 
+        "/media", "/var", "/etc", "/srv", "/opt", "C:", "c:"];
+
+    if illegal_locations.contains(&source_dir.to_str().unwrap()) || illegal_locations.iter().any(|x| source_dir.starts_with(x)){
+        println!("\nHey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.");
+        println!("\nHere is the list of paths your source directory path must never start with : {:?}", illegal_locations);
+
+        process::exit(1);
+    }
+
+    if let Operation::Encrypt = operation{
+        println!("\n\nValidating if the source directory has any encrypted files");
     for entry in WalkDir::new(source_dir)
         .follow_links(true)
         .into_iter()
@@ -77,10 +90,13 @@ pub fn pre_validate_source(source_dir: &PathBuf) -> Option<PathBuf> {
 
             if f_name.ends_with(".enom") {
                 let file_path: PathBuf = entry.into_path().as_path().to_owned();
-                return Some(file_path);
+                println!("\nYikes! Found an encrypted file => {:?}, and there could be several. 
+Please ensure you are not providing already encrypted files. Doing double encryption won't help", file_path);
+                process::exit(1);
             }
         } 
-    return None;
+    }
+    
 }
 
 pub fn recurse_dirs(item: &PathBuf) {

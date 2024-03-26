@@ -129,26 +129,16 @@ fn confirmation() -> String {
 }
 
 fn main() {
-    let args = Args::parse();
+    let args = &Args::parse();
     let file: String;
     let mut lines: std::str::Lines<>;
-    let path = PathBuf::from(args.source_dir.clone());
+    let path = PathBuf::from(&args.source_dir);
 
     *VERBOSE.lock().unwrap() = args.verbose;
 
     DIR_LIST.lock().unwrap().push(path.clone());
-    match args.operation.clone() {
-        Operation::Encrypt => {
-            if let Some(file) = pre_validate_source(&path){
-                println!("\nYikes! Found an encrypted file => {:?}, and there could be several. 
-Please ensure you are not providing already encrypted files. Doing double encryption won't help", file);
-                process::exit(1);
-            };
-        },
-        Operation::Decrypt => {}
-    }
+    pre_validate_source(&path, &args.operation);
     
-
     recurse_dirs(&path);
     
     println!("\nNote: This software is issued under the MIT or Apache 2.0 License. Understand what it means before use.\n");
@@ -167,7 +157,7 @@ Please ensure you are not providing already encrypted files. Doing double encryp
 
     match args.mode {
         Mode::ECB => {
-            if let Ok(tmp) = fs::read_to_string(args.password_file) {
+            if let Ok(tmp) = fs::read_to_string(&args.password_file) {
                 *ECB_32BYTE_KEY.lock().unwrap() = tmp.trim().to_owned();
                 if ECB_32BYTE_KEY.lock().unwrap().len() != 32 {
                     panic!("The key specified in the password file is not of 32 bytes. Did you miss characters? or did you specify a 2nd line by accident?");
@@ -179,7 +169,7 @@ Please ensure you are not providing already encrypted files. Doing double encryp
             
         },
         Mode::GCM => {
-            let (password, salt) = if let Ok(tmp) = fs::read_to_string(args.password_file) {
+            let (password, salt) = if let Ok(tmp) = fs::read_to_string(&args.password_file) {
                 
                 file = tmp.clone();
                 lines = file.trim().lines();
