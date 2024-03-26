@@ -59,7 +59,7 @@
 mod operations;
 
 use clap::Parser;
-use std::{time::Instant, path::PathBuf, fs, io::{stdin,stdout,Write}};
+use std::{borrow::Cow, fs, io::{stdin,stdout,Write}, path::PathBuf, time::Instant};
 use crate::operations::{
     create_dirs, decrypt_files, encrypt_files, find_password_file, pre_validate_source, recurse_dirs, DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT, VERBOSE
 };
@@ -68,7 +68,7 @@ use rpassword::prompt_password;
 use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
 use aes_gcm::{Aes256Gcm, Key};
-use std::{env, process};
+use std::env;
 
 #[derive(Parser)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]
@@ -227,58 +227,33 @@ Please ensure you are not providing already encrypted files. Doing double encryp
         }
     };
 
-    let target_dir = match args.target_dir {
-        Some(f) => f,
-        None => args.source_dir.clone()
+    let target_dir = match &args.target_dir {
+        Some(f) => f.as_str(),
+        None => &args.source_dir.as_str()
     };
 
+    String::from_utf8_lossy(include_bytes!("warning.txt"))
+                    .chars()
+                    .for_each(|x| 
+                        if Cow::<str>::Owned(x.to_string()) == "\n" { 
+                            println!("");
+                        } else {
+                            print!("{}", x);
+                        }
+                    );
 
-
-    println!("\n
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#### EXTREME WARNING ####                                                                                               |
-                                                                                                                        |
-Most file encryption programs are destructive in nature. You MUST know what you are doing.                              |
-                                                                                                                        |
-Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your files.         |
-                                                                                                                        |
-=======================================                                                                                 |
-Four unbreakable rules you MUST follow                                                                                  |
-=======================================                                                                                 |
-                                                                                                                        |
-1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.                        |
-                                                                                                                        |
-2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for                              |
-   example binary files/executables.                                                                                    |
-   It will either create or skip such files, but ensure you don't try to encrypt anything as                            |
-   such in the first place. If done so, the later you decrypt them, the binaries may or may not work.                   |
-                                                                                                                        |
-3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb,                               |
-   then the program will generate your decrypted target files, but those files WILL get                                 |
-   corrupted by getting filled with gibberish.                                                                          |
-                                                                                                                        | 
-4. If you have characters other than Alphanumeric (spaces are fine) in your folder and file names,                      |
-   then do not use them with this program. The program does not refuse to work with them,                               |
-   but your files will be misplaced in weird locations because you had weird characters in your file and folder names.  |
-                                                                                                                        |
-Ensure you provide the correct files for the operation you choose                                                       |
-                                                                                                                        |
-USE AT YOUR OWN RISK!                                                                                                   |
-                                                                                                                        |
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-
-
+    println!("\nDo you wish to proceed?\n");
 
     if confirmation() == "Y" {
         let start_time = Instant::now();
         match args.operation {
             Operation::Encrypt => {
-                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Encrypt, args.source_dir.as_str(), target_dir.as_str());
-                encrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), target_dir.as_str(), args.mode, args.delete_src);
+                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Encrypt, args.source_dir.as_str(), target_dir);
+                encrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), target_dir, args.mode, args.delete_src);
             },
             Operation::Decrypt => {
-                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Decrypt, args.source_dir.as_str(), target_dir.as_str());
-                decrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), target_dir.as_str(), args.mode, args.delete_src);
+                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Decrypt, args.source_dir.as_str(), target_dir);
+                decrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), target_dir, args.mode, args.delete_src);
             }
         }
         let elapsed = Some(start_time.elapsed());

@@ -1,0 +1,31 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#### EXTREME WARNING ####                                                                                               |
+                                                                                                                        |
+Most file encryption programs are destructive in nature. You MUST know what you are doing.                              |
+                                                                                                                        |
+Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your files.         |
+                                                                                                                        |
+=======================================                                                                                 |
+Four unbreakable rules you MUST follow                                                                                  |
+=======================================                                                                                 |
+                                                                                                                        |
+1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.                        |
+                                                                                                                        |
+2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for                              |
+   example binary files/executables.                                                                                    |
+   It will either create or skip such files, but ensure you don't try to encrypt anything as                            |
+   such in the first place. If done so, the later you decrypt them, the binaries may or may not work.                   |
+                                                                                                                        |
+3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb,                               |
+   then the program will generate your decrypted target files, but those files WILL get                                 |
+   corrupted by getting filled with gibberish.                                                                          |
+                                                                                                                        | 
+4. If you have characters other than Alphanumeric (spaces are fine) in your folder and file names,                      |
+   then do not use them with this program. The program does not refuse to work with them,                               |
+   but your files will be misplaced in weird locations because you had weird characters in your file and folder names.  |
+                                                                                                                        |
+Ensure you provide the correct files for the operation you choose                                                       |
+                                                                                                                        |
+USE AT YOUR OWN RISK!                                                                                                   |
+                                                                                                                        |
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"

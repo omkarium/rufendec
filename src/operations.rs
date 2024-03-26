@@ -10,7 +10,7 @@ use byte_aes::Aes256Cryptor;
 use lazy_static::lazy_static;
 use rayon;
 pub use std::sync::Mutex;
-use std::{fmt::Write, fs, path::PathBuf, sync::Arc, time::Duration};
+use std::{fmt::Write, fs, path::PathBuf, process, sync::Arc, time::Duration};
 use walkdir::WalkDir;
 use std::env;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
