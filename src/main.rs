@@ -56,6 +56,9 @@
 //! Som3RandPa$$wdOfAnyLength
 //! SomethingSaltIGiveOfAnyLength
 //! ```
+
+// The lines above are used to generate Rust documentation. Program code starts from the below.
+
 mod operations;
 
 use clap::Parser;
@@ -70,6 +73,7 @@ use sha2::Sha256;
 use aes_gcm::{Aes256Gcm, Key};
 use std::env;
 
+// Using Clap library to provide the user with CLI argument parser and help section.
 #[derive(Parser)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]
 struct Args {
@@ -103,13 +107,18 @@ struct Args {
 
 }
 
+/* This function prompts the user to input a pass and salt when the user does not specify a password file using -p option. 
+   This is only used for GCM Mode
+*/
 fn password_prompt() -> (String, String) {
     (prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned(),
     prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned())
 }
 
+/* This function can be used for all sorts of confirmation input from the user. */
 fn confirmation() -> String {
     let mut confirmation: String=String::new();
+
     print!("\nPlease type Y for yes, and N for no : ");
 
     let _=stdout().flush();
@@ -125,20 +134,35 @@ fn confirmation() -> String {
     }
 
     println!("\nYou typed: {}\n", confirmation);
+
     confirmation
 }
 
+// Program execution begins here
 fn main() {
+
+    // Get the input arguments and options from the CLI passed by the user
     let args = &Args::parse();
+
     let file: String;
     let mut lines: std::str::Lines<>;
     let path = PathBuf::from(&args.source_dir);
 
     *VERBOSE.lock().unwrap() = args.verbose;
 
+    /* DIR_LIST is the directory list. It is used to gather the list of sub directories the source directory has
+       later will be used to create the same directory structure in the target 
+       The Source directory path first needs to be pushed to DIR_LIST. That way when the
+       create_dirs() function is called, the source directory base path will be replace by the target path specified.
+     */ 
     DIR_LIST.lock().unwrap().push(path.clone());
+
+
+    // Validates whether any Illegal source dir path is provided
+    // Validates whether any encrypted files are present in the source directory while the operation the user choose is to Encrypt
     pre_validate_source(&path, &args.operation);
     
+    // Recursively walk through the source directory and list all the sub-directory names and push it to a collection
     recurse_dirs(&path);
     
     println!("\nNote: This software is issued under the MIT or Apache 2.0 License. Understand what it means before use.\n");
@@ -155,7 +179,10 @@ fn main() {
     println!("The encrypted files MUST be of '.enom' extension");
     println!("\n**************************\n");
 
+    // Helps to get encryption credentials from the user
     match args.mode {
+
+        // If ECB mode is chosen, then ask the user only for a Password and store it in ECB_32BYTE_KEY
         Mode::ECB => {
             if let Ok(tmp) = fs::read_to_string(&args.password_file) {
                 *ECB_32BYTE_KEY.lock().unwrap() = tmp.trim().to_owned();
@@ -168,7 +195,11 @@ fn main() {
             }
             
         },
+
+        // If GCM mode is chosen, then ask the user for Password and Salt, and store the final key in GCM_32BYTE_KEY
         Mode::GCM => {
+
+            // First look for credentials in a password file and grab the password and salt in variables as Strings
             let (password, salt) = if let Ok(tmp) = fs::read_to_string(&args.password_file) {
                 
                 file = tmp.clone();
@@ -176,10 +207,12 @@ fn main() {
                 (lines.next().expect("Password is expected").to_owned(), lines.next().expect("Salt is expected in the password-file").to_owned())
             
             } else {
+                // If the password file is not found then look for a password file
                 
                 println!("\nSorry, I did not find a password-file provided as a command-line option. Maybe you provided but forgot to pass the file with the '.omk' extension");
                 println!("Searching for a password file on your machine. It ends with the extension '.omk'");
                 
+                // find_password_file() helps to look for a password file
                 if let Some(o) = find_password_file() {
                     println!("\nDo you wish to use this file?");
                     if confirmation() == "Y" {
@@ -190,38 +223,55 @@ fn main() {
                             (lines.next().expect("Password is expected").to_owned(), lines.next().expect("Salt is expected in the password-file").to_owned()) 
                         
                         } else {
+                            // The user chosen to use the password file found by the program, but the read failed
 
                             println!("Failed the read the password file");
                             println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
+                            
+                            // Prompt the user to input the password and salt manually
                             password_prompt()
 
                         }
                     } else {
+                        // The password file is found in the system, but the user wished to not use it
+                        
                         println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
+                        
+                        // Prompt the user to input the password and salt manually
                         password_prompt()
                     }
                    
                 } else {
+                    // Prompt the user to input the password and salt manually because no password file is found on the system
                     println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
                     password_prompt()
                 }
 
             };
 
-            //let salt = SaltString::generate(&mut OsRng);
+            // Use let salt = SaltString::generate(&mut OsRng) to generate a truly random salt;
+
+            // Using the PBKDF2 SHA256 function generate a 32 byte key array based on the password and the salt provided as bytes, and the number of iterations
             let key = pbkdf2_hmac_array::<Sha256, 32>(password.as_bytes(), salt.as_bytes(), args.iterations);
+            
+            // Generate a Key of type Generic Array which can be used by the core AES GCM module from the 32 byte key array
             let key_gen = Key::<Aes256Gcm>::from_slice(&key);
+
+            // GCM_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a Mutex which is needed for Multithreading
             GCM_32BYTE_KEY.lock().unwrap().push(key_gen.to_owned());
             println!("\nGenerated a key based on PBKDF2 HMAC (SHA256) function ...");
 
         }
     };
 
+    // Capture the target dir path by using the target_dir arg the user passed, if not then use the source directory to place the target files
     let target_dir = match &args.target_dir {
         Some(f) => f.as_str(),
         None => &args.source_dir.as_str()
     };
 
+    // Read the Extreme Warning message from the warning.txt file which resides in the binary file as bytes.
+    // Print the warning text exactly the same way it is represented in the warning.txt file
     String::from_utf8_lossy(include_bytes!("warning.txt"))
                     .chars()
                     .for_each(|x| 
@@ -231,35 +281,44 @@ fn main() {
                             print!("{}", x);
                         }
                     );
-
-    println!("\nDo you wish to proceed?\n");
+    // Ask if the user wish to proceed for further. If No, quit the program
+    println!("\nDo you wish to proceed further?\n");
 
     if confirmation() == "Y" {
+
+        // Capture the start time of the execution
         let start_time = Instant::now();
         match args.operation {
             Operation::Encrypt => {
-                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Encrypt, args.source_dir.as_str(), target_dir);
+                // Create the target directory and sub-directories first. Encrypt the files and place them in the target
+                create_dirs(DIR_LIST.lock().unwrap().to_vec(), args.source_dir.as_str(), target_dir);
                 encrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), target_dir, args.mode, args.delete_src);
             },
             Operation::Decrypt => {
-                create_dirs(DIR_LIST.lock().unwrap().to_vec(), Operation::Decrypt, args.source_dir.as_str(), target_dir);
+                // Create the target directory and sub-directories first. Decrypt the files and place them in the target
+                create_dirs(DIR_LIST.lock().unwrap().to_vec(), args.source_dir.as_str(), target_dir);
                 decrypt_files(FILE_LIST.lock().unwrap().to_vec(), args.threads, args.source_dir.as_str(), target_dir, args.mode, args.delete_src);
             }
         }
+
+        // Capture the elapsed time of the execution
         let elapsed = Some(start_time.elapsed());
         println!("\n============Results==============\n");
         println!("Time taken to finish the {:?}, Operation: {:?}", args.operation, elapsed.unwrap());
 
+        // Success and failed count of files which are either encrypted or decrypted is currently only possible mode GCM
         if args.mode.to_string() == "GCM" {
             println!("\nTotal Success count: {}", SUCCESS_COUNT.lock().unwrap());
             println!("Total failure count: {}", FAILED_COUNT.lock().unwrap());
         }
 
+        // Print if the failed file count is greater than 0
         if *FAILED_COUNT.lock().unwrap() > 0 {
             println!("\nLooks like we got some failures 😰. Please check if the you provided the correct password (and the salt in case you are using GCM mode)");
         } else {
             println!("\nWe are done. Enjoy hacker!!! 😎");
         }
+
         println!("\n=================================\n");
 
     } else {

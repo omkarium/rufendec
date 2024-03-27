@@ -1,8 +1,8 @@
-use aes_gcm::aes::cipher::{
-    crypto_common::generic_array::GenericArray,
-    typenum::{UInt, UTerm, B0, B1, /*U32, U16*/ U12},
-};
 use aes_gcm::{
+    aes::cipher::{
+        crypto_common::generic_array::GenericArray,
+        typenum::{UInt, UTerm, B0, B1, /*U32, U16*/ U12},
+    },
     aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, //, Nonce, Key // Or `Aes128Gcm`
 };
@@ -10,15 +10,28 @@ use byte_aes::Aes256Cryptor;
 use lazy_static::lazy_static;
 use rayon;
 pub use std::sync::Mutex;
-use std::{fmt::Write, fs, path::PathBuf, process, sync::Arc, time::Duration};
+use std::{env, fmt::Write, fs, path::PathBuf, process, sync::Arc, time::Duration};
 use walkdir::WalkDir;
-use std::env;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
+/* What do the above imports do?
+   -----------------------
+   aes_gcm - Has the functions which helps to encrypt and decrypt the files for GCM mode
+   byte_aes - Has the functions which helps to encrypt and decrypt the files for ECB mode
+   lazy_static - A rust way to have Global variables
+   rayon - Helps to make the cipher operations multi-threaded
+   std - Has some standard core features to find Operation system, read and write files, find time, Atomic Reference Counter, process to forcefully exit the program execution
+   walkdir - Helps to walk through a given folder path
+   indicatif - Has some fancy ProgressBar and Spinners to print on the screen
+
+   Read the Cargo.toml and Attributions to see which versions and the Authors who made these crates
+*/
+
+// Specify the Global Variables. These variables are initialized using lazy_static macro and can be accessed anywhere in code
+// Mutex is required to access these variables inside Rayon threads
 lazy_static! {
     pub static ref ECB_32BYTE_KEY: Mutex<String> = Mutex::new(String::new());
-    pub static ref GCM_32BYTE_KEY: Mutex<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =
-        Mutex::new(Vec::new());
+    pub static ref GCM_32BYTE_KEY: Mutex<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =Mutex::new(Vec::new());
     pub static ref DIR_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     pub static ref FILE_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     pub static ref FAILED_COUNT: Mutex<u16> = Mutex::new(0);
@@ -26,6 +39,7 @@ lazy_static! {
     pub static ref VERBOSE: Mutex<bool> = Mutex::new(false);
 }
 
+// A simple macro which prints only when verbose printing is specified using the -v program argument
 macro_rules! logger {
     ($value: literal, $item: expr) => {
         if *VERBOSE.lock().unwrap() {
@@ -52,6 +66,7 @@ impl std::fmt::Display for Mode {
     }
 }
 
+// This function helps to Construct a ProgressBar for a given file count. But not to be used only when verbose printing is allowed.
 pub fn progress_bar(file_count: u64) -> Option<ProgressBar> {
     if !(*VERBOSE.lock().unwrap()) {
         let pb = ProgressBar::new(file_count);
@@ -65,40 +80,52 @@ pub fn progress_bar(file_count: u64) -> Option<ProgressBar> {
     None
 }
 
-
+// Validates whether there are any Illegal source dir path is provided
+// Validates whether any encrypted files are provided when the operation the user choose is to Encrypt
 pub fn pre_validate_source(source_dir: &PathBuf, operation: &Operation) {
+    
     let illegal_locations = 
         ["/", "/root", "/home", "/boot", "/usr", "/lib", "/lib64", "/lib32", 
         "/libx32", "/mnt", "/dev", "/sys", "/run", "/bin", "/sbin", "/proc", 
         "/media", "/var", "/etc", "/srv", "/opt", "C:", "c:"];
 
     if illegal_locations.contains(&source_dir.to_str().unwrap()) || illegal_locations.iter().any(|x| source_dir.starts_with(x)){
+        
         println!("\nHey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.");
         println!("\nHere is the list of paths your source directory path must never start with : {:?}", illegal_locations);
 
-        process::exit(1);
+        process::exit(1); // Exit if an illegal path is observed.
     }
 
-    if let Operation::Encrypt = operation{
+    // Validate if the Source path has any encrypted file while the operation chosen by the user is encrypt
+    if let Operation::Encrypt = operation {
         println!("\n\nValidating if the source directory has any encrypted files");
-    for entry in WalkDir::new(source_dir)
-        .follow_links(true)
-        .into_iter()
-        .filter_map(|e| e.ok()) {
-            
-            let f_name = entry.file_name().to_string_lossy();
+        
+        for entry in WalkDir::new(source_dir)
+            .follow_links(true)
+            .into_iter()
+            .filter_map(|e| e.ok()) {
+                
+                let f_name = entry.file_name().to_string_lossy();
 
-            if f_name.ends_with(".enom") {
-                let file_path: PathBuf = entry.into_path().as_path().to_owned();
-                println!("\nYikes! Found an encrypted file => {:?}, and there could be several. 
-Please ensure you are not providing already encrypted files. Doing double encryption won't help", file_path);
-                process::exit(1);
-            }
-        } 
-    }
-    
+                // Check for the .enom file extension in the file names. .enom is the encrypted files extension
+                if f_name.ends_with(".enom") {
+
+                    let file_path: PathBuf = entry.into_path().as_path().to_owned();
+                    
+                    println!("\nYikes! Found an encrypted file => {:?}, and there could be several.\nPlease ensure you are not providing already encrypted files. Doing double encryption won't help", file_path);
+                    
+                    process::exit(1); // Exit the program execution forcefully
+                }
+            } 
+        }
 }
 
+/* Recursively walk through the path provided and list all the sub-directory names and push it to a collection
+   Gathers the directory names and file names under the path 
+   The DIR_LIST will be used to create the target directories
+   The FILE_LIST will be used know which files to Encrypt or Decrypt
+*/
 pub fn recurse_dirs(item: &PathBuf) {
     if item.is_dir() {
         if let Ok(paths) = fs::read_dir(item) {
@@ -120,9 +147,12 @@ pub fn recurse_dirs(item: &PathBuf) {
     }
 }
 
+// This function helps to find a password file with ".omk" extension on the users system
 pub fn find_password_file() -> Option<PathBuf> {
 
     let os_type = env::consts::OS;
+
+    // This specifies where to look for the file
     let target_dir = match os_type {
         "linux" => vec![".", "..", "../../", "/etc", "/root", "/home"],
         "windows" => vec!["C:/WINDOWS/SYSTEM32/config", "."],
@@ -132,13 +162,15 @@ pub fn find_password_file() -> Option<PathBuf> {
     for i in target_dir {
         let file_list: Vec<Result<walkdir::DirEntry, walkdir::Error>> = WalkDir::new(i).into_iter().collect();
         println!("\nSearching this many files : {:?}. Please be patient", file_list.capacity());
-        let bar = ProgressBar::new_spinner();
+        
+        let bar = ProgressBar::new_spinner(); // Create a Spinner
+        
         for entry in WalkDir::new(i)
         .follow_links(true)
         .into_iter()
         .filter_map(|e| e.ok()) {
             
-            bar.enable_steady_tick(Duration::from_millis(100));
+            bar.enable_steady_tick(Duration::from_millis(100)); // Steadily spin the spinner
 
             let f_name = entry.file_name().to_string_lossy();
 
@@ -151,25 +183,21 @@ pub fn find_password_file() -> Option<PathBuf> {
     }
         return None;
 
-    
-
 }
 
+// Creates the target directory and sub-directories by operating on the Paths.
 pub fn create_dirs(
     paths: Vec<PathBuf>,
-    operation: Operation,
     source_dir_name: &str,
     target_dir_name: &str,
 ) {
     for parent in paths {
-        let destination = match operation {
-            _ => parent
+        let destination = parent
                 .to_owned()
                 .as_mut_os_str()
                 .to_str()
                 .unwrap()
-                .replace(source_dir_name, target_dir_name),
-        };
+                .replace(source_dir_name, target_dir_name);
 
         logger!("Directory created => {:?}", destination);
         
@@ -177,6 +205,10 @@ pub fn create_dirs(
     }
 }
 
+/* Encrypts the files in the file_list in parallel based on the thread_count and Mode. Places the files the target directory 
+   by replacing the source_dir_name with the target_dir_name.
+   Delete the source directory if the delete_src is true.
+*/
 pub fn encrypt_files(
     file_list: Vec<PathBuf>,
     thread_count: usize,
@@ -185,29 +217,38 @@ pub fn encrypt_files(
     mode: Mode,
     delete_src: bool
 ) {
+    // Construct a ProgressBar. ProgressBar is only available when verbose printing is not chosen. Hence it can come as None.
+    // When PB is not constructed, mark the pb_bool as false
     let (pb, pb_bool): (ProgressBar, bool) = match progress_bar(file_list.capacity() as u64) {
         Some(pb) => (pb, true),
         None => (ProgressBar::new(0), false)
     };
     
+    // PB count starts with 1
     let pb_increment: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
 
+    // Construct a ThreadPool using Rayon
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(thread_count)
         .build()
         .unwrap();
     
+    // For each element in file_list create a new thread and run it inside the thread scope
+    // Rayon only allows certain number of threads to be created and executed in parallel based on the thread_count specified.
     pool.install(|| {
         rayon::scope(|s| {
             for file in file_list {
 
-                let pb = pb.clone(); // Unable to avoid these clone when there is Progress Bar use
+                let pb = pb.clone();
                 let pb_increment: Arc<Mutex<u64>> = pb_increment.clone();
 
+                // Spawn the threads here
                 s.spawn(move |_| {
                     if let Ok(file_data) = fs::read(file.clone()) {
                         match mode {
                             Mode::ECB => {
+
+                                //Create Aes256Cryptor Object
                                 let encrypt_obj = Aes256Cryptor::try_from(
                                     &ECB_32BYTE_KEY
                                         .lock()
@@ -216,6 +257,7 @@ pub fn encrypt_files(
                                 )
                                 .unwrap();
 
+                                // Call the encrypt method on the Aes256Cryptor Object
                                 let encrypted_bytes = encrypt_obj.encrypt(file_data); // vec<u8>
                                 
                                 let new_file_name = file
@@ -228,14 +270,17 @@ pub fn encrypt_files(
 
                                 logger!("Encrypted file :: {}", new_file_name);
                                 
+                                // Write the encrypted bytes to new_file_name
                                 let _ = fs::write(new_file_name, encrypted_bytes);
 
+                                // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
                                 if delete_src {
                                     if let Err(e) = fs::remove_file(file) {
                                         logger!("Failed to delete the file :: {}", e);
                                     }
                                 }
 
+                                // Increment the ProgressBar if pb_bool is true. Happens when verbose printing is not chosen
                                 if pb_bool {
                                     pb.set_position(*pb_increment.lock().unwrap());
                                     *pb_increment.lock().unwrap()+=1;
@@ -243,13 +288,18 @@ pub fn encrypt_files(
                             }
 
                             Mode::GCM => {
+
+                                // Extract the 32 byte key from the Vec and construct a Aes256Gcm object
                                 let cipher: aes_gcm::AesGcm<aes_gcm::aes::Aes256, _, _> =
                                     Aes256Gcm::new(&GCM_32BYTE_KEY.lock().unwrap().as_slice()[0]);
                                 
+                                // Generate a random 12 byte Nonce
                                 let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
                                 
+                                // Call the encrypt method on the Aes256Gcm object and see if was successful
                                 match cipher.encrypt(&nonce, file_data.as_ref()) {
                                     Ok(encrypted_bytes) => {
+                                        // Success
                                         let new_file_name = file
                                             .as_os_str()
                                             .to_str()
@@ -260,18 +310,22 @@ pub fn encrypt_files(
                                         
                                         logger!("Encrypted file :: {}", new_file_name);
                                         
+                                        // Concat the encrypted_bytes and Nonce and Write it to new_file_name
                                         let _ = fs::write(
                                             new_file_name,
                                             [encrypted_bytes, nonce.to_vec()].concat(),
                                         );
+
                                         *SUCCESS_COUNT.lock().unwrap() += 1;
 
+                                        // Delete the source file
                                         if delete_src {
                                             if let Err(e) = fs::remove_file(file) {
                                                 logger!("Failed to delete the file :: {}", e);
                                             }
                                         }
                                         
+                                        // Increment the ProgressBar
                                         if pb_bool {
                                             pb.set_position(*pb_increment.lock().unwrap());
                                             *pb_increment.lock().unwrap()+=1;
@@ -279,6 +333,7 @@ pub fn encrypt_files(
 
                                     }
                                     Err(_) => {
+                                        // Increment the failed count by 1 since the encryption failed.
                                         *FAILED_COUNT.lock().unwrap() += 1;
                                     }
                                 } // vec<u8>
@@ -291,6 +346,10 @@ pub fn encrypt_files(
     })
 }
 
+/* Decrypts the files in the file_list in parallel based on the thread_count and Mode. Places the files the target directory 
+   by replacing the source_dir_name with the target_dir_name.
+   Delete the source directory if the delete_src is true.
+*/
 pub fn decrypt_files(
     file_list: Vec<PathBuf>,
     thread_count: usize,
@@ -315,7 +374,7 @@ pub fn decrypt_files(
         rayon::scope(|s| {
             for file in file_list {
 
-                let pb = pb.clone(); // Unable to avoid these clone when there is Progress Bar use
+                let pb = pb.clone();
                 let pb_increment: Arc<Mutex<u64>> = pb_increment.clone();
 
                 s.spawn(move |_| {
@@ -324,16 +383,22 @@ pub fn decrypt_files(
                             let mut file_data: Vec<u8> = file_data;
                             
                             //let nonce = file_data.clone().into_iter().rev().take(12).rev().collect::<Vec<u8>>();
+                            // Onc we have file_data to be decrypted we need to extract the Nonce which we used to Encrypt. 
+                            // The None is part of the file. It is the last 12 bytes in the encrypted file. We need to know where to Split
+                            // saturating_sub helps to find the position at which the split needs to happen which varies based on the file_data length.
                             let final_length = file_data.len().saturating_sub(12);
                             
+                            // Splits at the final_length. This length is the end of the actual file content and the start of the Nonce. It then returns the Nonce in a new Vec<u8>
                             let nonce = file_data.split_off(final_length);
                             
                             let cipher: aes_gcm::AesGcm<aes_gcm::aes::Aes256, _, _> =
                                 Aes256Gcm::new(&GCM_32BYTE_KEY.lock().unwrap().as_slice()[0]);
                             //let nonce: GenericArray<u8, UInt<UInt<UInt<UInt<UTerm, B1>, B1>, B0>, B0>> = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
                             
+                            // We need the Nonce to be of type GenericArray to be used by the decrypt function
                             let nonce = GenericArray::<u8, U12>::from_slice(nonce.as_ref());
                             
+                            // File is decrypted here
                             match cipher.decrypt(nonce, file_data.as_ref()) {
                                 Ok(res) => {
                                     let new_file_name = file
@@ -368,6 +433,8 @@ pub fn decrypt_files(
                             }
 
                         } else {
+
+                            // The below code applies for Mode ECB
                             let decrypt_obj = Aes256Cryptor::try_from(
                                 &ECB_32BYTE_KEY
                                     .lock()
