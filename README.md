@@ -121,10 +121,11 @@ Kindly take backup of whatever you are encrypt first. I repeat, BACKUP BACKUP BA
 If you find any security vulnerabilities in code, please submit an issue privately.
 
 ---------------------------------------
-Four unbreakable rules you MUST follow
+Five unbreakable rules you MUST follow
 ---------------------------------------
 
 1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.
+Avoid using too many threads while processing large files. For example, say you have 10 files of each 1 GB and you are using 10 threads at once, then 10 GB of memory will be consumed.
 
 2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for example binary files/executables.
    It will either create or skip such files, but ensure you don't try to encrypt anything as such in the first place.
@@ -134,6 +135,9 @@ Four unbreakable rules you MUST follow
   then the program will generate your decrypted target files, but those WILL get corrupted filled with gibberish.
 
 4. If you have characters other than Alphanumeric (spaces are fine) in your folder and file names, then do not use them with this program. The program does not refuse to work with them, but your files will be misplaced in weird locations because you had weird characters in your file and folder names.
+
+5. If you did not specify a target directory, then make sure you don't stop the process in between. 
+   Allow the operation to fully complete.
 
 Ensure you provide the correct files for the operation you choose
 

@@ -67,7 +67,8 @@ impl std::fmt::Display for Mode {
 }
 
 // This function helps to Construct a ProgressBar for a given file count. But not to be used only when verbose printing is allowed.
-pub fn progress_bar(file_count: u64) -> Option<ProgressBar> {
+// ProgressBar needs to be Arc<Mutex<>> because it will be shared among threads
+pub fn progress_bar(file_count: u64) -> Option<Arc<Mutex<ProgressBar>>> {
     if !(*VERBOSE.lock().unwrap()) {
         let pb = ProgressBar::new(file_count);
 
@@ -75,7 +76,7 @@ pub fn progress_bar(file_count: u64) -> Option<ProgressBar> {
             .unwrap()
             .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
             .progress_chars("#>-"));
-        return Some(pb)
+        return Some(Arc::new(Mutex::new(pb)))
     }
     None
 }
@@ -219,9 +220,9 @@ pub fn encrypt_files(
 ) {
     // Construct a ProgressBar. ProgressBar is only available when verbose printing is not chosen. Hence it can come as None.
     // When PB is not constructed, mark the pb_bool as false
-    let (pb, pb_bool): (ProgressBar, bool) = match progress_bar(file_list.capacity() as u64) {
+    let (pb, pb_bool): (Arc<Mutex<ProgressBar>>, bool) = match progress_bar(file_list.capacity() as u64) {
         Some(pb) => (pb, true),
-        None => (ProgressBar::new(0), false)
+        None => (Arc::new(Mutex::new(ProgressBar::new(0))), false) // I hate this line. Unavoidable with my current knowledge.
     };
     
     // PB count starts with 1
@@ -239,7 +240,7 @@ pub fn encrypt_files(
         rayon::scope(|s| {
             for file in file_list {
 
-                let pb = pb.clone();
+                let pb: Arc<Mutex<ProgressBar>> = pb.clone();
                 let pb_increment: Arc<Mutex<u64>> = pb_increment.clone();
 
                 // Spawn the threads here
@@ -282,7 +283,7 @@ pub fn encrypt_files(
 
                                 // Increment the ProgressBar if pb_bool is true. Happens when verbose printing is not chosen
                                 if pb_bool {
-                                    pb.set_position(*pb_increment.lock().unwrap());
+                                    pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
                                     *pb_increment.lock().unwrap()+=1;
                                 }
                             }
@@ -327,7 +328,7 @@ pub fn encrypt_files(
                                         
                                         // Increment the ProgressBar
                                         if pb_bool {
-                                            pb.set_position(*pb_increment.lock().unwrap());
+                                            pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
                                             *pb_increment.lock().unwrap()+=1;
                                         }
 
@@ -358,9 +359,9 @@ pub fn decrypt_files(
     mode: Mode,
     delete_src: bool
 ) {
-    let (pb, pb_bool): (ProgressBar, bool) = match progress_bar(file_list.capacity() as u64) {
+    let (pb, pb_bool): (Arc<Mutex<ProgressBar>>, bool) = match progress_bar(file_list.capacity() as u64) {
         Some(pb) => (pb, true),
-        None => (ProgressBar::new(0), false)
+        None => (Arc::new(Mutex::new(ProgressBar::new(0))), false) // Stupid line.
     };
     
     let pb_increment: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
@@ -374,7 +375,7 @@ pub fn decrypt_files(
         rayon::scope(|s| {
             for file in file_list {
 
-                let pb = pb.clone();
+                let pb: Arc<Mutex<ProgressBar>> = pb.clone();
                 let pb_increment: Arc<Mutex<u64>> = pb_increment.clone();
 
                 s.spawn(move |_| {
@@ -422,7 +423,7 @@ pub fn decrypt_files(
                                     }
 
                                     if pb_bool {
-                                        pb.set_position(*pb_increment.lock().unwrap());
+                                        pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
                                         *pb_increment.lock().unwrap()+=1;
                                     }
 
@@ -465,7 +466,7 @@ pub fn decrypt_files(
                                 }
 
                                 if pb_bool {
-                                    pb.set_position(*pb_increment.lock().unwrap());
+                                    pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
                                     *pb_increment.lock().unwrap()+=1;
                                 }
 
