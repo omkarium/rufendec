@@ -64,7 +64,8 @@ mod operations;
 use clap::Parser;
 use std::{borrow::Cow, fs, io::{stdin,stdout,Write}, path::PathBuf, time::Instant};
 use crate::operations::{
-    create_dirs, decrypt_files, encrypt_files, find_password_file, pre_validate_source, recurse_dirs, DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT, VERBOSE
+    create_dirs, decrypt_files, encrypt_files, find_password_file, pre_validate_source, recurse_dirs, 
+    DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT, VERBOSE, FILES_SIZE_BYTES
 };
 use crate::operations::{Operation, Mode};
 use rpassword::prompt_password;
@@ -72,6 +73,7 @@ use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
 use aes_gcm::{Aes256Gcm, Key};
 use std::env;
+use human_bytes::human_bytes;
 
 // Using Clap library to provide the user with CLI argument parser and help section.
 #[derive(Parser)]
@@ -165,18 +167,22 @@ fn main() {
     // Recursively walk through the source directory and list all the sub-directory names and push it to a collection
     recurse_dirs(&path);
     
+    let total_files_size = FILES_SIZE_BYTES.lock().unwrap();
+
     println!("\nNote: This software is issued under the MIT or Apache 2.0 License. Understand what it means before use.\n");
     println!("\n################### Execution Begin #########################\n");
     println!("\n**** Operational Info ****\n");
-    println!("{} system detected", env::consts::OS);
-    println!("The source directory you provided : {}", args.source_dir);
-    println!("The target director you provided : {}", args.target_dir.as_ref().unwrap_or(&"Not Specified".to_string()));
-    println!("Delete the source files? : {:?}", args.delete_src);
-    println!("This number of directories will be created in the target directory : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
-    println!("This number of files will be created in the target directory : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
-    println!("Total threads about to be used : {}", args.threads);
-    println!("The Operation and the Mode you are about to perform on the source directory : {:?}, AES-256-{:?}", args.operation, args.mode);
-    println!("The encrypted files MUST be of '.enom' extension");
+    println!("Operating system                              : {}", env::consts::OS);
+    println!("The source directory you provided             : {}", args.source_dir);
+    println!("The target directory you provided             : {}", args.target_dir.as_ref().unwrap_or(&"Not Specified".to_string()));
+    println!("Delete the source files?                      : {}", args.delete_src);
+    println!("Total target sub-directories (to be created)  : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
+    println!("Total target files (to be created)            : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
+    println!("Total size of source directory                : {}", human_bytes(*total_files_size as f64));
+    println!("Total threads about to be used                : {}", args.threads);
+    println!("Operation chosen                              : {:?}", args.operation);
+    println!("Mode chosen                                   : AES-256-{:?}", args.mode);
+    println!("\nThe encrypted files MUST be of '.enom' extension");
     println!("\n**************************\n");
 
     // Helps to get encryption credentials from the user
@@ -304,7 +310,7 @@ fn main() {
         // Capture the elapsed time of the execution
         let elapsed = Some(start_time.elapsed());
         println!("\n============Results==============\n");
-        println!("Time taken to finish the {:?}, Operation: {:?}", args.operation, elapsed.unwrap());
+        println!("Finished {:?}ion in {:?}, at a rate of {}/sec", args.operation, elapsed.unwrap(), human_bytes(*total_files_size as f64/elapsed.unwrap().as_secs_f64()));
 
         // Success and failed count of files which are either encrypted or decrypted is currently only possible mode GCM
         if args.mode.to_string() == "GCM" {

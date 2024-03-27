@@ -370,6 +370,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "human_bytes"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91f255a4535024abf7640cb288260811fc14794f62b063652ed349f9a6c2348e"
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -588,12 +594,13 @@ dependencies = [
 
 [[package]]
 name = "rufendec"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "aes-gcm",
  "byte-aes",
  "chrono",
  "clap",
+ "human_bytes",
  "indicatif",
  "lazy_static",
  "pbkdf2",

@@ -10,7 +10,7 @@ use byte_aes::Aes256Cryptor;
 use lazy_static::lazy_static;
 use rayon;
 pub use std::sync::Mutex;
-use std::{env, fmt::Write, fs, path::PathBuf, process, sync::Arc, time::Duration};
+use std::{env, fmt::Write, fs, os::unix::fs::MetadataExt, path::PathBuf, process, sync::Arc, time::Duration};
 use walkdir::WalkDir;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
@@ -34,6 +34,7 @@ lazy_static! {
     pub static ref GCM_32BYTE_KEY: Mutex<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =Mutex::new(Vec::new());
     pub static ref DIR_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     pub static ref FILE_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+    pub static ref FILES_SIZE_BYTES: Mutex<u64> = Mutex::new(0);
     pub static ref FAILED_COUNT: Mutex<u16> = Mutex::new(0);
     pub static ref SUCCESS_COUNT: Mutex<u16> = Mutex::new(0);
     pub static ref VERBOSE: Mutex<bool> = Mutex::new(false);
@@ -126,6 +127,7 @@ pub fn pre_validate_source(source_dir: &PathBuf, operation: &Operation) {
    Gathers the directory names and file names under the path 
    The DIR_LIST will be used to create the target directories
    The FILE_LIST will be used know which files to Encrypt or Decrypt
+   FILE_SIZE_BYTES totals each file size
 */
 pub fn recurse_dirs(item: &PathBuf) {
     if item.is_dir() {
@@ -142,6 +144,7 @@ pub fn recurse_dirs(item: &PathBuf) {
                     recurse_dirs(&entry.path());
                 } else {
                     FILE_LIST.lock().unwrap().push(entry.path());
+                    *FILES_SIZE_BYTES.lock().unwrap() += entry.path().metadata().unwrap().size();
                 }
             } // end of for loop
         }
