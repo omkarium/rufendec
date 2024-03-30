@@ -10,7 +10,7 @@ use byte_aes::Aes256Cryptor;
 use lazy_static::lazy_static;
 use rayon;
 pub use std::sync::Mutex;
-use std::{env, fmt::Write, fs, os::unix::fs::MetadataExt, path::PathBuf, process, sync::Arc, time::Duration};
+use std::{env, fmt::Write, fs, os::unix::fs::MetadataExt, path::PathBuf, process, sync::{Arc, RwLock}, time::Duration};
 use walkdir::WalkDir;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
@@ -30,20 +30,20 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 // Specify the Global Variables. These variables are initialized using lazy_static macro and can be accessed anywhere in code
 // Mutex is required to access these variables inside Rayon threads
 lazy_static! {
-    pub static ref ECB_32BYTE_KEY: Mutex<String> = Mutex::new(String::new());
-    pub static ref GCM_32BYTE_KEY: Mutex<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =Mutex::new(Vec::new());
+    pub static ref ECB_32BYTE_KEY: RwLock<String> = RwLock::new(String::new());
+    pub static ref GCM_32BYTE_KEY: RwLock<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =RwLock::new(Vec::new());
     pub static ref DIR_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     pub static ref FILE_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     pub static ref FILES_SIZE_BYTES: Mutex<u64> = Mutex::new(0);
     pub static ref FAILED_COUNT: Mutex<u16> = Mutex::new(0);
     pub static ref SUCCESS_COUNT: Mutex<u16> = Mutex::new(0);
-    pub static ref VERBOSE: Mutex<bool> = Mutex::new(false);
+    pub static ref VERBOSE: RwLock<bool> = RwLock::new(false);
 }
 
 // A simple macro which prints only when verbose printing is specified using the -v program argument
 macro_rules! logger {
     ($value: literal, $item: expr) => {
-        if *VERBOSE.lock().unwrap() {
+        if *VERBOSE.read().unwrap() {
             println!($value, $item);}
     
         };
@@ -70,7 +70,7 @@ impl std::fmt::Display for Mode {
 // This function helps to Construct a ProgressBar for a given file count. But not to be used only when verbose printing is allowed.
 // ProgressBar needs to be Arc<Mutex<>> because it will be shared among threads
 pub fn progress_bar(file_count: u64) -> Option<Arc<Mutex<ProgressBar>>> {
-    if !(*VERBOSE.lock().unwrap()) {
+    if !(*VERBOSE.read().unwrap()) {
         let pb = ProgressBar::new(file_count);
 
         pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos} /{percent}% files completed ({eta_precise})")
@@ -209,6 +209,16 @@ pub fn create_dirs(
     }
 }
 
+// Construct a ProgressBar. ProgressBar is only available when verbose printing is not chosen. Hence it can come as None.
+// When PB is not constructed, mark the pb_bool as false. PB increment counter starting value is 1
+fn progress_bar_init(file_list: &[PathBuf]) -> (Arc<Mutex<ProgressBar>>, bool, Arc<Mutex<u64>>) {
+
+    let (pb, pb_bool, pb_increment): (Arc<Mutex<ProgressBar>>, bool, Arc<Mutex<u64>>) = match progress_bar(file_list.to_owned().capacity() as u64) {
+        Some(pb) => (pb, true, Arc::new(Mutex::new(1))),
+        None => (Arc::new(Mutex::new(ProgressBar::new(0))), false, Arc::new(Mutex::new(1))) // I hate this line. Unavoidable with my current knowledge.
+    };
+    (pb,pb_bool,pb_increment)
+}
 /* Encrypts the files in the file_list in parallel based on the thread_count and Mode. Places the files the target directory 
    by replacing the source_dir_name with the target_dir_name.
    Delete the source directory if the delete_src is true.
@@ -221,15 +231,8 @@ pub fn encrypt_files(
     mode: Mode,
     delete_src: bool
 ) {
-    // Construct a ProgressBar. ProgressBar is only available when verbose printing is not chosen. Hence it can come as None.
-    // When PB is not constructed, mark the pb_bool as false
-    let (pb, pb_bool): (Arc<Mutex<ProgressBar>>, bool) = match progress_bar(file_list.capacity() as u64) {
-        Some(pb) => (pb, true),
-        None => (Arc::new(Mutex::new(ProgressBar::new(0))), false) // I hate this line. Unavoidable with my current knowledge.
-    };
     
-    // PB count starts with 1
-    let pb_increment: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
+    let (pb, pb_bool, pb_increment) = progress_bar_init(&file_list);
 
     // Construct a ThreadPool using Rayon
     let pool = rayon::ThreadPoolBuilder::new()
@@ -241,21 +244,22 @@ pub fn encrypt_files(
     // Rayon only allows certain number of threads to be created and executed in parallel based on the thread_count specified.
     pool.install(|| {
         rayon::scope(|s| {
-            for file in file_list {
+            for file in &file_list {
 
                 let pb: Arc<Mutex<ProgressBar>> = pb.clone();
                 let pb_increment: Arc<Mutex<u64>> = pb_increment.clone();
+                let file = Arc::new(RwLock::new(file));
 
                 // Spawn the threads here
                 s.spawn(move |_| {
-                    if let Ok(file_data) = fs::read(file.clone()) {
+                    if let Ok(file_data) = fs::read(*file.clone().read().unwrap()) {
                         match mode {
                             Mode::ECB => {
 
                                 //Create Aes256Cryptor Object
                                 let encrypt_obj = Aes256Cryptor::try_from(
                                     &ECB_32BYTE_KEY
-                                        .lock()
+                                        .read()
                                         .expect("Failed to get a lock on the password")
                                         as &str,
                                 )
@@ -264,7 +268,7 @@ pub fn encrypt_files(
                                 // Call the encrypt method on the Aes256Cryptor Object
                                 let encrypted_bytes = encrypt_obj.encrypt(file_data); // vec<u8>
                                 
-                                let new_file_name = file
+                                let new_file_name = file.clone().read().unwrap()
                                     .as_os_str()
                                     .to_str()
                                     .expect("Found a bad file")
@@ -279,7 +283,7 @@ pub fn encrypt_files(
 
                                 // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
                                 if delete_src {
-                                    if let Err(e) = fs::remove_file(file) {
+                                    if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
                                         logger!("Failed to delete the file :: {}", e);
                                     }
                                 }
@@ -295,7 +299,7 @@ pub fn encrypt_files(
 
                                 // Extract the 32 byte key from the Vec and construct a Aes256Gcm object
                                 let cipher: aes_gcm::AesGcm<aes_gcm::aes::Aes256, _, _> =
-                                    Aes256Gcm::new(&GCM_32BYTE_KEY.lock().unwrap().as_slice()[0]);
+                                    Aes256Gcm::new(&GCM_32BYTE_KEY.read().unwrap().as_slice()[0]);
                                 
                                 // Generate a random 12 byte Nonce
                                 let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
@@ -304,7 +308,7 @@ pub fn encrypt_files(
                                 match cipher.encrypt(&nonce, file_data.as_ref()) {
                                     Ok(encrypted_bytes) => {
                                         // Success
-                                        let new_file_name = file
+                                        let new_file_name = file.clone().read().unwrap()
                                             .as_os_str()
                                             .to_str()
                                             .expect("Found a bad file")
@@ -324,7 +328,7 @@ pub fn encrypt_files(
 
                                         // Delete the source file
                                         if delete_src {
-                                            if let Err(e) = fs::remove_file(file) {
+                                            if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
                                                 logger!("Failed to delete the file :: {}", e);
                                             }
                                         }
@@ -362,13 +366,8 @@ pub fn decrypt_files(
     mode: Mode,
     delete_src: bool
 ) {
-    let (pb, pb_bool): (Arc<Mutex<ProgressBar>>, bool) = match progress_bar(file_list.capacity() as u64) {
-        Some(pb) => (pb, true),
-        None => (Arc::new(Mutex::new(ProgressBar::new(0))), false) // Stupid line.
-    };
+    let (pb, pb_bool, pb_increment) = progress_bar_init(&file_list);
     
-    let pb_increment: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
-
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(thread_count)
         .build()
@@ -376,13 +375,14 @@ pub fn decrypt_files(
     
     pool.install(|| {
         rayon::scope(|s| {
-            for file in file_list {
+            for file in &file_list {
 
                 let pb: Arc<Mutex<ProgressBar>> = pb.clone();
                 let pb_increment: Arc<Mutex<u64>> = pb_increment.clone();
+                let file = Arc::new(RwLock::new(file));
 
                 s.spawn(move |_| {
-                    if let Ok(file_data) = fs::read(file.clone()) {
+                    if let Ok(file_data) = fs::read(*file.clone().read().unwrap()) {
                         if let Mode::GCM = mode {
                             let mut file_data: Vec<u8> = file_data;
                             
@@ -396,7 +396,7 @@ pub fn decrypt_files(
                             let nonce = file_data.split_off(final_length);
                             
                             let cipher: aes_gcm::AesGcm<aes_gcm::aes::Aes256, _, _> =
-                                Aes256Gcm::new(&GCM_32BYTE_KEY.lock().unwrap().as_slice()[0]);
+                                Aes256Gcm::new(&GCM_32BYTE_KEY.read().unwrap().as_slice()[0]);
                             //let nonce: GenericArray<u8, UInt<UInt<UInt<UInt<UTerm, B1>, B1>, B0>, B0>> = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
                             
                             // We need the Nonce to be of type GenericArray to be used by the decrypt function
@@ -405,7 +405,7 @@ pub fn decrypt_files(
                             // File is decrypted here
                             match cipher.decrypt(nonce, file_data.as_ref()) {
                                 Ok(res) => {
-                                    let new_file_name = file
+                                    let new_file_name = file.clone().read().unwrap()
                                         .as_os_str()
                                         .to_str()
                                         .unwrap()
@@ -420,7 +420,7 @@ pub fn decrypt_files(
                                     *SUCCESS_COUNT.lock().unwrap() += 1;
 
                                     if delete_src {
-                                        if let Err(e) = fs::remove_file(file) {
+                                        if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
                                             logger!("Failed to delete the file :: {}", e);
                                         }
                                     }
@@ -441,7 +441,7 @@ pub fn decrypt_files(
                             // The below code applies for Mode ECB
                             let decrypt_obj = Aes256Cryptor::try_from(
                                 &ECB_32BYTE_KEY
-                                    .lock()
+                                    .read()
                                     .expect("Failed to get a lock on the password")
                                     as &str,
                             )
@@ -450,7 +450,7 @@ pub fn decrypt_files(
                             let decrypted_result = decrypt_obj.decrypt(file_data);
                             
                             if let Ok(decrypted_bytes) = decrypted_result {
-                                let new_file_name = file
+                                let new_file_name = file.clone().read().unwrap()
                                     .as_os_str()
                                     .to_str()
                                     .unwrap()
@@ -463,7 +463,7 @@ pub fn decrypt_files(
                                 let _ = fs::write(new_file_name, decrypted_bytes);
 
                                 if delete_src {
-                                    if let Err(e) = fs::remove_file(file) {
+                                    if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
                                         logger!("Failed to delete the file :: {}", e);
                                     }
                                 }

@@ -150,7 +150,7 @@ fn main() {
     let mut lines: std::str::Lines<>;
     let path = PathBuf::from(&args.source_dir);
 
-    *VERBOSE.lock().unwrap() = args.verbose;
+    *VERBOSE.write().unwrap() = args.verbose;
 
     /* DIR_LIST is the directory list. It is used to gather the list of sub directories the source directory has
        later will be used to create the same directory structure in the target 
@@ -191,13 +191,13 @@ fn main() {
         // If ECB mode is chosen, then ask the user only for a Password and store it in ECB_32BYTE_KEY
         Mode::ECB => {
             if let Ok(tmp) = fs::read_to_string(&args.password_file) {
-                *ECB_32BYTE_KEY.lock().unwrap() = tmp.trim().to_owned();
-                if ECB_32BYTE_KEY.lock().unwrap().len() != 32 {
+                *ECB_32BYTE_KEY.write().unwrap() = tmp.trim().to_owned();
+                if ECB_32BYTE_KEY.read().unwrap().len() != 32 {
                     panic!("The key specified in the password file is not of 32 bytes. Did you miss characters? or did you specify a 2nd line by accident?");
                 }
             } else {
                 println!("\nSorry, I did not find a password-file provided as a command-line options. You need to manually enter the credentials.\n");
-                *ECB_32BYTE_KEY.lock().unwrap() = prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned();
+                *ECB_32BYTE_KEY.write().unwrap() = prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned();
             }
             
         },
@@ -264,7 +264,7 @@ fn main() {
             let key_gen = Key::<Aes256Gcm>::from_slice(&key);
 
             // GCM_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a Mutex which is needed for Multithreading
-            GCM_32BYTE_KEY.lock().unwrap().push(key_gen.to_owned());
+            GCM_32BYTE_KEY.write().unwrap().push(key_gen.to_owned());
             println!("\nGenerated a key based on PBKDF2 HMAC (SHA256) function ...");
 
         }
