@@ -151,6 +151,19 @@ Yes. This software do require maintenance, but only in two cases.
 1. If the Dependent crates in Cargo.toml change versions, and the authors yank the older versions. But that is very unlikely to happen. Even so, you can always find a compiled release here on github releases.
 2. If someone finds a bug and reports it.
 
+### Benchmark Test
+
+CPU: Intel i5 (4cores) @ 3.300GHz 
+GPU: Intel 2nd Generation Core Processor Family
+RAM: 11835 MiB
+Linux Mint 21.1 X86_64
+Target folders created : 1431
+Target files created: 6435
+Source Folder Size: 1.6 GiB
+Encryption took 13 seconds at the rate of 123 MiB/sec
+Decryption took 11 seconds at the rate of 145.5 MiB/sec
+
+
 
 [//]: # (badges)
 
