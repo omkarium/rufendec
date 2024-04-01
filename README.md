@@ -97,7 +97,7 @@ In the above examples, the names `source-dir` and `target-dir` are arbitrary. Yo
 
 ---
 
-*Also, when you choose GCM mode, in the password file, you have to pass a salt in the 2nd line after specifying the password in th 1st line. But if you go for ECB mode, you don't need to specify a salt. In either case, the password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2*
+*Also, when you choose GCM or ECB mode, in the password file, you have to pass a salt in the 2nd line after specifying the password in th 1st line. The password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2*
 
 Example context inside a ./passwordfile
 ```
@@ -121,7 +121,7 @@ Kindly take backup of whatever you are encrypt first. I repeat, BACKUP BACKUP BA
 If you find any security vulnerabilities in code, please submit an issue privately.
 
 ---------------------------------------
-Five unbreakable rules you MUST follow
+Rules to follow
 ---------------------------------------
 
 1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.
