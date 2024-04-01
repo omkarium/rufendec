@@ -97,7 +97,7 @@ In the above examples, the names `source-dir` and `target-dir` are arbitrary. Yo
 
 ---
 
-*Also, when you choose GCM or ECB mode, in the password file, you have to pass a salt in the 2nd line after specifying the password in th 1st line. The password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2*
+*Note: In the password file, you have to specify the password in th 1st line and the salt in the second line. The password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2*
 
 Example context inside a ./passwordfile
 ```
@@ -120,16 +120,15 @@ Kindly take backup of whatever you are encrypt first. I repeat, BACKUP BACKUP BA
 
 If you find any security vulnerabilities in code, please submit an issue privately.
 
----------------------------------------
+-----------------
 Rules to follow
----------------------------------------
+-----------------
 
 1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.
 Avoid using too many threads while processing large files. For example, say you have 10 files of each 1 GB and you are using 10 threads at once, then 10 GB of memory will be consumed.
 
-2. This program refuses to encrypt those kind of files which are not utf-8 compatible, for example binary files/executables.
-   It will either create or skip such files, but ensure you don't try to encrypt anything as such in the first place.
-   If done so, the later you decrypt them, the binaries may or may not work.
+2. It is recommended to not encrypt utf-8 incompatible files, for example binary files/executables.
+It will either create or skip such files, but ensure you don't try to encrypt anything as such in the first place. If done so, the later you decrypt them, the binaries may or may not work.
 
 3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb, 
   then the program will generate your decrypted target files, but those WILL get corrupted filled with gibberish.
@@ -139,7 +138,7 @@ Avoid using too many threads while processing large files. For example, say you 
 5. If you did not specify a target directory, then make sure you don't stop the process in between. 
    Allow the operation to fully complete.
 
-Ensure you provide the correct files for the operation you choose
+Ensure you provide the correct files for the operation you choose. Do some dummy tests before using on important files
 
 USE AT YOUR OWN RISK!
 
@@ -153,14 +152,22 @@ Yes. This software do require maintenance, but only in two cases.
 
 ### Benchmark Test
 
-CPU: Intel i5 (4cores) @ 3.300GHz 
+CPU: Intel i5 (4cores) @ 3.300GHz
+
 GPU: Intel 2nd Generation Core Processor Family
+
 RAM: 11835 MiB
+
 Linux Mint 21.1 X86_64
+
 Target folders created : 1431
+
 Target files created: 6435
+
 Source Folder Size: 1.6 GiB
+
 Encryption took 13 seconds at the rate of 123 MiB/sec
+
 Decryption took 11 seconds at the rate of 145.5 MiB/sec
 
 
