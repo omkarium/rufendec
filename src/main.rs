@@ -109,14 +109,6 @@ struct Args {
 
 }
 
-/* This function prompts the user to input a pass and salt when the user does not specify a password file using -p option. 
-   This is only used for GCM Mode
-*/
-fn password_prompt() -> (String, String) {
-    (prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned(),
-    prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned())
-}
-
 /* This function can be used for all sorts of confirmation input from the user. */
 fn confirmation() -> String {
     let mut confirmation: String=String::new();
@@ -140,14 +132,60 @@ fn confirmation() -> String {
     confirmation
 }
 
+fn password_file_finder<F>(f: F) -> (Option<std::string::String>, Option<std::string::String>) 
+    where F : Fn() -> (Option<std::string::String>, Option<std::string::String>){
+
+    let file: String;
+    let mut lines: std::str::Lines<>;
+
+    // If the password file is not found then look for a password file
+                
+    println!("\nSorry, I did not find a password-file provided as a command-line option. Maybe you provided but forgot to pass the file with the '.omk' extension");
+    println!("Searching for a password file on your machine. It ends with the extension '.omk'");
+    
+    // find_password_file() helps to look for a password file
+    if let Some(o) = find_password_file() {
+        println!("\nDo you wish to use this file?");
+        if confirmation() == "Y" {
+            if let Ok(k) = fs::read_to_string(o) {
+                
+                file = k.clone();
+                lines = file.trim().lines();
+                (Some(lines.next().expect("Password is expected").to_owned()), Some(lines.next().expect("Salt is expected in the password-file").to_owned())) 
+            
+            } else {
+                // The user chosen to use the password file found by the program, but the read failed
+
+                println!("Failed the read the password file");
+                println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
+                
+                // Prompt the user to input the password and salt manually
+                //password_prompt()
+                f()
+            }
+        } else {
+            // The password file is found in the system, but the user wished to not use it
+            
+            println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
+            
+            // Prompt the user to input the password and salt manually
+            f()
+        }
+       
+    } else {
+        // Prompt the user to input the password and salt manually because no password file is found on the system
+        println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
+        f()
+    }
+}
+
 // Program execution begins here
 fn main() {
 
     // Get the input arguments and options from the CLI passed by the user
     let args = &Args::parse();
 
-    let file: String;
-    let mut lines: std::str::Lines<>;
+
     let path = PathBuf::from(&args.source_dir);
 
     *VERBOSE.write().unwrap() = args.verbose;
@@ -197,7 +235,15 @@ fn main() {
                 }
             } else {
                 println!("\nSorry, I did not find a password-file provided as a command-line options. You need to manually enter the credentials.\n");
-                *ECB_32BYTE_KEY.write().unwrap() = prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned();
+                *ECB_32BYTE_KEY.write().unwrap() = 
+                
+                password_file_finder(|| { 
+                    (Some(
+                        prompt_password("Enter the Password: ")
+                            .expect("You entered a bad password").trim().to_owned()
+                        ),
+                    None)
+                }).0.unwrap();
             }
             
         },
@@ -207,58 +253,21 @@ fn main() {
 
             // First look for credentials in a password file and grab the password and salt in variables as Strings
             let (password, salt) = if let Ok(tmp) = fs::read_to_string(&args.password_file) {
-                
-                file = tmp.clone();
-                lines = file.trim().lines();
-                (lines.next().expect("Password is expected").to_owned(), lines.next().expect("Salt is expected in the password-file").to_owned())
+                let file: String = tmp.clone();
+                let mut lines: std::str::Lines<> = file.trim().lines();
+                (Some(lines.next().expect("Password is expected").to_owned()), Some(lines.next().expect("Salt is expected in the password-file").to_owned()))
             
             } else {
-                // If the password file is not found then look for a password file
-                
-                println!("\nSorry, I did not find a password-file provided as a command-line option. Maybe you provided but forgot to pass the file with the '.omk' extension");
-                println!("Searching for a password file on your machine. It ends with the extension '.omk'");
-                
-                // find_password_file() helps to look for a password file
-                if let Some(o) = find_password_file() {
-                    println!("\nDo you wish to use this file?");
-                    if confirmation() == "Y" {
-                        if let Ok(k) = fs::read_to_string(o) {
-                            
-                            file = k.clone();
-                            lines = file.trim().lines();
-                            (lines.next().expect("Password is expected").to_owned(), lines.next().expect("Salt is expected in the password-file").to_owned()) 
-                        
-                        } else {
-                            // The user chosen to use the password file found by the program, but the read failed
-
-                            println!("Failed the read the password file");
-                            println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
-                            
-                            // Prompt the user to input the password and salt manually
-                            password_prompt()
-
-                        }
-                    } else {
-                        // The password file is found in the system, but the user wished to not use it
-                        
-                        println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
-                        
-                        // Prompt the user to input the password and salt manually
-                        password_prompt()
-                    }
-                   
-                } else {
-                    // Prompt the user to input the password and salt manually because no password file is found on the system
-                    println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
-                    password_prompt()
-                }
-
+                password_file_finder(|| { 
+                    (Some(prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned()),
+                    Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
+                 })
             };
 
             // Use let salt = SaltString::generate(&mut OsRng) to generate a truly random salt;
 
             // Using the PBKDF2 SHA256 function generate a 32 byte key array based on the password and the salt provided as bytes, and the number of iterations
-            let key = pbkdf2_hmac_array::<Sha256, 32>(password.as_bytes(), salt.as_bytes(), args.iterations);
+            let key = pbkdf2_hmac_array::<Sha256, 32>(password.unwrap().as_bytes(), salt.unwrap().as_bytes(), args.iterations);
             
             // Generate a Key of type Generic Array which can be used by the core AES GCM module from the 32 byte key array
             let key_gen = Key::<Aes256Gcm>::from_slice(&key);
