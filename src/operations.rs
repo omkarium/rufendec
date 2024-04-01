@@ -10,9 +10,16 @@ use byte_aes::Aes256Cryptor;
 use lazy_static::lazy_static;
 use rayon;
 pub use std::sync::Mutex;
-use std::{env, fmt::Write, fs, os::unix::fs::MetadataExt, path::PathBuf, process, sync::{Arc, RwLock}, time::Duration};
+use std::{env, fmt::Write, fs, path::PathBuf, process, sync::{Arc, RwLock}, time::Duration};
 use walkdir::WalkDir;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::MetadataExt;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::MetadataExt;
+
 
 /* What do the above imports do?
    -----------------------
@@ -144,7 +151,17 @@ pub fn recurse_dirs(item: &PathBuf) {
                     recurse_dirs(&entry.path());
                 } else {
                     FILE_LIST.lock().unwrap().push(entry.path());
-                    *FILES_SIZE_BYTES.lock().unwrap() += entry.path().metadata().unwrap().size();
+                    if cfg!(unix) {
+                        #[cfg(target_os = "linux")]
+                        {
+                            *FILES_SIZE_BYTES.lock().unwrap() += entry.path().metadata().unwrap().size();
+                        }
+                    } else if cfg!(windows) {
+                        #[cfg(target_os = "windows")]
+                        {
+                            *FILES_SIZE_BYTES.lock().unwrap() += entry.path().metadata().unwrap().file_size();;
+                        }                        
+                    }
                 }
             } // end of for loop
         }
