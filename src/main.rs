@@ -185,7 +185,6 @@ fn main() {
     // Get the input arguments and options from the CLI passed by the user
     let args = &Args::parse();
 
-
     let path = PathBuf::from(&args.source_dir);
 
     *VERBOSE.write().unwrap() = args.verbose;
@@ -223,56 +222,40 @@ fn main() {
     println!("\nThe encrypted files MUST be of '.enom' extension");
     println!("\n**************************\n");
 
+    // First look for credentials in a password file and grab the password and salt in variables as Strings
+    let (password, salt) = if let Ok(tmp) = fs::read_to_string(&args.password_file) {
+        let file: String = tmp.clone();
+        let mut lines: std::str::Lines<> = file.trim().lines();
+        (Some(lines.next().expect("Password is expected").to_owned()), Some(lines.next().expect("Salt is expected in the password-file").to_owned()))
+    
+    } else {
+        password_file_finder(|| { 
+            (Some(prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned()),
+            Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
+         })
+    };
+
+    // Use let salt = SaltString::generate(&mut OsRng) to generate a truly random salt;
+
+    // Using the PBKDF2 SHA256 function generate a 32 byte key array based on the password and the salt provided as bytes, and the number of iterations
+    let key = pbkdf2_hmac_array::<Sha256, 32>(password.unwrap().as_bytes(), salt.unwrap().as_bytes(), args.iterations);
+    
+    // Generate a Key of type Generic Array which can be used by the core AES GCM module from the 32 byte key array
+    let key_gen = Key::<Aes256Gcm>::from_slice(&key);
+
     // Helps to get encryption credentials from the user
     match args.mode {
-
+        
         // If ECB mode is chosen, then ask the user only for a Password and store it in ECB_32BYTE_KEY
         Mode::ECB => {
-            if let Ok(tmp) = fs::read_to_string(&args.password_file) {
-                *ECB_32BYTE_KEY.write().unwrap() = tmp.trim().to_owned();
-                if ECB_32BYTE_KEY.read().unwrap().len() != 32 {
-                    panic!("The key specified in the password file is not of 32 bytes. Did you miss characters? or did you specify a 2nd line by accident?");
-                }
-            } else {
-                println!("\nSorry, I did not find a password-file provided as a command-line options. You need to manually enter the credentials.\n");
-                *ECB_32BYTE_KEY.write().unwrap() = 
-                
-                password_file_finder(|| { 
-                    (Some(
-                        prompt_password("Enter the Password: ")
-                            .expect("You entered a bad password").trim().to_owned()
-                        ),
-                    None)
-                }).0.unwrap();
-            }
-            
+            // ECB_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a RwLock which is needed for Multithreading
+            ECB_32BYTE_KEY.write().unwrap().push(key_gen.to_owned());
         },
 
         // If GCM mode is chosen, then ask the user for Password and Salt, and store the final key in GCM_32BYTE_KEY
         Mode::GCM => {
 
-            // First look for credentials in a password file and grab the password and salt in variables as Strings
-            let (password, salt) = if let Ok(tmp) = fs::read_to_string(&args.password_file) {
-                let file: String = tmp.clone();
-                let mut lines: std::str::Lines<> = file.trim().lines();
-                (Some(lines.next().expect("Password is expected").to_owned()), Some(lines.next().expect("Salt is expected in the password-file").to_owned()))
-            
-            } else {
-                password_file_finder(|| { 
-                    (Some(prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned()),
-                    Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
-                 })
-            };
-
-            // Use let salt = SaltString::generate(&mut OsRng) to generate a truly random salt;
-
-            // Using the PBKDF2 SHA256 function generate a 32 byte key array based on the password and the salt provided as bytes, and the number of iterations
-            let key = pbkdf2_hmac_array::<Sha256, 32>(password.unwrap().as_bytes(), salt.unwrap().as_bytes(), args.iterations);
-            
-            // Generate a Key of type Generic Array which can be used by the core AES GCM module from the 32 byte key array
-            let key_gen = Key::<Aes256Gcm>::from_slice(&key);
-
-            // GCM_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a Mutex which is needed for Multithreading
+            // GCM_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a RwLock which is needed for Multithreading
             GCM_32BYTE_KEY.write().unwrap().push(key_gen.to_owned());
             println!("\nGenerated a key based on PBKDF2 HMAC (SHA256) function ...");
 

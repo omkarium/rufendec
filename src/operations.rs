@@ -30,7 +30,7 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 // Specify the Global Variables. These variables are initialized using lazy_static macro and can be accessed anywhere in code
 // Mutex is required to access these variables inside Rayon threads
 lazy_static! {
-    pub static ref ECB_32BYTE_KEY: RwLock<String> = RwLock::new(String::new());
+    pub static ref ECB_32BYTE_KEY: RwLock<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =RwLock::new(Vec::new());
     pub static ref GCM_32BYTE_KEY: RwLock<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =RwLock::new(Vec::new());
     pub static ref DIR_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     pub static ref FILE_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
@@ -286,13 +286,14 @@ pub fn encrypt_files(
                 Mode::ECB => {
 
                     //Create Aes256Cryptor Object
-                    let encrypt_obj = Aes256Cryptor::try_from(
-                        &ECB_32BYTE_KEY
-                            .read()
-                            .expect("Failed to get a lock on the password")
-                            as &str,
-                    )
-                    .unwrap();
+                    let encrypt_obj = 
+                        
+                            Aes256Cryptor::new( {
+                                let mut key = [0u8; 32];
+                                key.copy_from_slice(ECB_32BYTE_KEY
+                                .read().unwrap()[0].as_slice());
+                                key
+                            });
 
                     // Call the encrypt method on the Aes256Cryptor Object
                     let encrypted_bytes = encrypt_obj.encrypt(file_data); // vec<u8>
@@ -451,14 +452,15 @@ pub fn decrypt_files(
 
             } else {
 
-                // The below code applies for Mode ECB
-                let decrypt_obj = Aes256Cryptor::try_from(
-                    &ECB_32BYTE_KEY
-                        .read()
-                        .expect("Failed to get a lock on the password")
-                        as &str,
-                )
-                .unwrap();
+                //Create Aes256Cryptor Object
+                let decrypt_obj = 
+    
+                Aes256Cryptor::new( {
+                    let mut key = [0u8; 32];
+                    key.copy_from_slice(ECB_32BYTE_KEY
+                    .read().unwrap()[0].as_slice());
+                    key
+                });
 
                 let decrypted_result = decrypt_obj.decrypt(file_data);
                 
