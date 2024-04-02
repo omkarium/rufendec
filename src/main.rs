@@ -74,6 +74,7 @@
     use aes_gcm::{Aes256Gcm, Key};
     use std::env;
     use human_bytes::human_bytes;
+    use zeroize::Zeroize;
 
     // Using Clap library to provide the user with CLI argument parser and help section.
     #[derive(Parser)]
@@ -238,25 +239,25 @@
         // Use let salt = SaltString::generate(&mut OsRng) to generate a truly random salt;
 
         // Using the PBKDF2 SHA256 function generate a 32 byte key array based on the password and the salt provided as bytes, and the number of iterations
-        let key = pbkdf2_hmac_array::<Sha256, 32>(password.unwrap().as_bytes(), salt.unwrap().as_bytes(), args.iterations);
+        let mut key = pbkdf2_hmac_array::<Sha256, 32>(password.unwrap().as_bytes(), salt.unwrap().as_bytes(), args.iterations);
         
         // Generate a Key of type Generic Array which can be used by the core AES GCM module from the 32 byte key array
-        let key_gen = Key::<Aes256Gcm>::from_slice(&key);
-
+        let mut key_gen = Key::<Aes256Gcm>::clone_from_slice(key.as_slice());
+        
         // Helps to get encryption credentials from the user
         match args.mode {
             
             // If ECB mode is chosen, then ask the user only for a Password and store it in ECB_32BYTE_KEY
             Mode::ECB => {
                 // ECB_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a RwLock which is needed for Multithreading
-                ECB_32BYTE_KEY.write().unwrap().push(key_gen.to_owned());
+                ECB_32BYTE_KEY.write().unwrap().push(key_gen);
             },
 
             // If GCM mode is chosen, then ask the user for Password and Salt, and store the final key in GCM_32BYTE_KEY
             Mode::GCM => {
 
                 // GCM_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a RwLock which is needed for Multithreading
-                GCM_32BYTE_KEY.write().unwrap().push(key_gen.to_owned());
+                GCM_32BYTE_KEY.write().unwrap().push(key_gen);
                 println!("\nGenerated a key based on PBKDF2 HMAC (SHA256) function ...");
 
             }
@@ -267,6 +268,9 @@
             Some(f) => f.as_str(),
             None => &args.source_dir.as_str()
         };
+
+        key.zeroize();
+        key_gen.zeroize();        
 
         // Read the Extreme Warning message from the warning.txt file which resides in the binary file as bytes.
         // Print the warning text exactly the same way it is represented in the warning.txt file
@@ -299,11 +303,25 @@
                 }
             }
 
+
+            if let Some(key_gen) = ECB_32BYTE_KEY.write().unwrap().get_mut(0) {
+                key_gen.zeroize();
+            }
+
+            if let Some(key_gen) = GCM_32BYTE_KEY.write().unwrap().get_mut(0) {
+                key_gen.zeroize();
+            }
+
+            match args.mode {
+                Mode::ECB =>  assert_eq!(ECB_32BYTE_KEY.read().unwrap().get(0).unwrap().as_slice(), &[0;32]),
+                Mode::GCM => assert_eq!(GCM_32BYTE_KEY.read().unwrap().get(0).unwrap().as_slice(), &[0;32])
+            }
+
             // Capture the elapsed time of the execution
             let elapsed = Some(start_time.elapsed());
             println!("\n============Results==============\n");
             println!("Finished {:?}ion in {:?}, at a rate of {}/sec", args.operation, elapsed.unwrap(), human_bytes(*total_files_size as f64/elapsed.unwrap().as_secs_f64()));
-
+            println!("\nSuccessfully cleared the credentials from the memory");
             // Success and failed count of files which are either encrypted or decrypted is currently only possible mode GCM
             if args.mode.to_string() == "GCM" {
                 println!("\nTotal Success count: {}", SUCCESS_COUNT.lock().unwrap());
