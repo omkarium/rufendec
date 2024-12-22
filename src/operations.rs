@@ -1,3 +1,5 @@
+   // Copyright (c) 2023 Venkatesh Omkaram
+
     use aes_gcm::{
         aes::cipher::{
             crypto_common::generic_array::GenericArray,
@@ -19,6 +21,8 @@
 
     #[cfg(target_os = "windows")]
     use std::os::windows::fs::MetadataExt;
+
+    use crate::log::{log, LogLevel};
 
 
     /* What do the above imports do?
@@ -100,7 +104,7 @@
 
         if illegal_locations.contains(&source_dir.to_str().unwrap()) || illegal_locations.iter().any(|x| source_dir.starts_with(x)){
             
-            println!("\nHey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.");
+            log(LogLevel::ERROR, format!("Hey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.").as_str());
             println!("\nHere is the list of paths your source directory path must never start with : {:?}", illegal_locations);
 
             process::exit(1); // Exit if an illegal path is observed.
@@ -122,7 +126,7 @@
 
                         let file_path: PathBuf = entry.into_path().as_path().to_owned();
                         
-                        println!("\nYikes! Found an encrypted file => {:?}, and there could be several.\nPlease ensure you are not providing already encrypted files. Doing double encryption won't help", file_path);
+                        log(LogLevel::WARN, format!("Yikes! Found an encrypted file => {:?}, and there could be several.\nPlease ensure you are not providing already encrypted files. Doing double encryption won't help", file_path).as_str());
                         
                         process::exit(1); // Exit the program execution forcefully
                     }
@@ -182,7 +186,7 @@
 
         for i in target_dir {
             let file_list: Vec<Result<walkdir::DirEntry, walkdir::Error>> = WalkDir::new(i).into_iter().collect();
-            println!("\nSearching this many files : {:?}. Please be patient", file_list.capacity());
+            log(LogLevel::INFO, format!("Searching this many files : {:?}. Please be patient", file_list.capacity()).as_str());
             
             let bar = ProgressBar::new_spinner(); // Create a Spinner
             

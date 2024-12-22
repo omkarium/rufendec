@@ -222,6 +222,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
+name = "colored"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
+dependencies = [
+ "lazy_static",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "console"
 version = "0.15.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -594,12 +604,13 @@ dependencies = [
 
 [[package]]
 name = "rufendec"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "aes-gcm",
  "byte-aes",
  "chrono",
  "clap",
+ "colored",
  "human_bytes",
  "indicatif",
  "lazy_static",

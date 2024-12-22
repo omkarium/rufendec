@@ -59,9 +59,13 @@
 
     // The lines above are used to generate Rust documentation. Program code starts from the below.
 
+    // Copyright (c) 2023 Venkatesh Omkaram
+
     mod operations;
+    mod log;
 
     use clap::Parser;
+    use crate::log::{log, LogLevel};
     use std::{borrow::Cow, fs, io::{stdin,stdout,Write}, path::PathBuf, time::Instant};
     use crate::operations::{
         create_dirs, decrypt_files, encrypt_files, find_password_file, pre_validate_source, recurse_dirs, 
@@ -75,6 +79,7 @@
     use std::env;
     use human_bytes::human_bytes;
     use zeroize::Zeroize;
+    use colored::Colorize;
 
     // Using Clap library to provide the user with CLI argument parser and help section.
     #[derive(Parser)]
@@ -86,21 +91,24 @@
         /// But if you do not provide this, the target files will be placed in the Source Dir. 
         /// To delete the source files make sure you pass option -d
         target_dir: Option<String>,
-        /// Pass this option to delete the source files in the Source Dir
-        #[clap(short, long, default_value_t = false)]
-        delete_src: bool, 
         /// Enter the password file with an extension ".omk". The first line in the file must have the password, and If you choose mode=gcm then ensure to pass the "Salt" in the 2nd line
         #[arg(short, long, default_value_t = String::new())]
         password_file: String,
+        /// Skip the password_file search on the machine if in case you decide to not provide the password_file in the CLI options
+        #[clap(short, long, default_value_t = false)]
+        skip_passwd_file_search: bool, 
         /// Enter the Operation you want to perform on the Source Dir
         #[clap(short, long, value_enum)]    
         operation: Operation,
-        /// Threads to speed up the execution
-        #[clap(short, long, default_value_t = 8)]
-        threads: usize,
         /// Provide the mode of Encryption here
         #[clap(short, long, value_enum, default_value_t = Mode::GCM)]    
         mode: Mode,
+        /// Pass this option to delete the source files in the Source Dir
+        #[clap(short, long, default_value_t = false)]
+        delete_src: bool,
+        /// Threads to speed up the execution
+        #[clap(short, long, default_value_t = 8)]
+        threads: usize,
         /// Iterations for PBKDF2
         #[clap(short, long, default_value_t = 60_000)]
         iterations: u32,
@@ -141,7 +149,7 @@
 
         // If the password file is not found then look for a password file
                     
-        println!("\nSorry, I did not find a password-file provided as a command-line option. Maybe you provided but forgot to pass the file with the '.omk' extension");
+        log(LogLevel::WARN, format!("Sorry, I did not find a password-file provided as a command-line option. Maybe you provided but forgot to pass the file with the '.omk' extension").as_str());
         println!("Searching for a password file on your machine. It ends with the extension '.omk'");
         
         // find_password_file() helps to look for a password file
@@ -182,6 +190,12 @@
 
     // Program execution begins here
     fn main() {
+        println!(
+            "\n@@@@@@@@@@@@@@@@@@@ Rufendec ({}) @@@@@@@@@@@@@@@@@@@\n",
+            "by Omkarium".green().bold()
+        );
+        println!("\n{}\n", 
+        "[Please read the documentation at https://github.com/omkarium/rufendec before you use this program]".bright_magenta());
 
         // Get the input arguments and options from the CLI passed by the user
         let args = &Args::parse();
@@ -230,10 +244,16 @@
             (Some(lines.next().expect("Password is expected").to_owned()), Some(lines.next().expect("Salt is expected in the password-file").to_owned()))
         
         } else {
-            password_file_finder(|| { 
-                (Some(prompt_password("Enter the Password: ").expect("You entered a bad password").trim().to_owned()),
+            if !args.skip_passwd_file_search {
+                password_file_finder(|| { 
+                    (Some(prompt_password("\nEnter the Password: ").expect("You entered a bad password").trim().to_owned()),
+                    Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
+                })
+            } else {
+                (Some(prompt_password("\nEnter the Password: ").expect("You entered a bad password").trim().to_owned()),
                 Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
-            })
+            }
+            
         };
 
         // Use let salt = SaltString::generate(&mut OsRng) to generate a truly random salt;
@@ -258,7 +278,7 @@
 
                 // GCM_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a RwLock which is needed for Multithreading
                 GCM_32BYTE_KEY.write().unwrap().push(key_gen);
-                println!("\nGenerated a key based on PBKDF2 HMAC (SHA256) function ...");
+                println!("\nGenerated a key based on PBKDF2 HMAC (SHA256) function ...\n");
 
             }
         };
@@ -280,7 +300,7 @@
                             if Cow::<str>::Owned(x.to_string()) == "\n" { 
                                 println!("");
                             } else {
-                                print!("{}", x);
+                                print!("{}", x.to_string().bright_white().bold().on_custom_color((54, 69, 79)));
                             }
                         );
         // Ask if the user wish to proceed for further. If No, quit the program
@@ -319,18 +339,21 @@
 
             // Capture the elapsed time of the execution
             let elapsed = Some(start_time.elapsed());
-            println!("\n============Results==============\n");
+            println!("\n============== {} ===============\n", "Result".bright_blue());
             println!("Finished {:?}ion in {:?}, at a rate of {}/sec", args.operation, elapsed.unwrap(), human_bytes(*total_files_size as f64/elapsed.unwrap().as_secs_f64()));
             println!("\nSuccessfully cleared the credentials from the memory");
             // Success and failed count of files which are either encrypted or decrypted is currently only possible mode GCM
             if args.mode.to_string() == "GCM" {
-                println!("\nTotal Success count: {}", SUCCESS_COUNT.lock().unwrap());
-                println!("Total failure count: {}", FAILED_COUNT.lock().unwrap());
+                println!("\nTotal Success count: {}", SUCCESS_COUNT.lock().unwrap().to_string().bright_purple().bold().blink());
+                println!("Total failure count: {}", FAILED_COUNT.lock().unwrap().to_string().bright_purple().bold().blink());
             }
 
             // Print if the failed file count is greater than 0
             if *FAILED_COUNT.lock().unwrap() > 0 {
-                println!("\nLooks like we got some failures 😰. Please check if the you provided the correct password (and the salt in case you are using GCM mode)");
+                println!("\nLooks like we got some failures 😰");
+                println!("\nPlease check whether you provided the correct password (and the salt in case you are using GCM mode)");
+                println!("\nFailures can also occur when you have the target files already present in the target directory");
+
             } else {
                 println!("\nWe are done. Enjoy hacker!!! 😎");
             }

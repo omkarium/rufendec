@@ -1,6 +1,6 @@
 [package]
 name = "rufendec"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 description = "Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption. This tool simplifies the process of securing the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec."
 authors = ["Venkatesh Omkaram"]
@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/omkarium/rufendec"
 homepage = "https://github.com/omkarium/rufendec"
 readme = "README.md"
-keywords = ["aes", "aes-256", "aes-gcm", "file-encryption-tool", "encryption", "encrypt"]
+keywords = ["aes", "aes-256", "aes-gcm", "encryption", "encrypt", "file-encryption-tool"]
 categories = ["cryptography"]
 rust-version = "1.75.0"
 
@@ -27,6 +27,7 @@ walkdir = "2"
 indicatif = "0.17.7"
 human_bytes = "0.4.3"
 zeroize= "1.7.0"
+colored = "2.1.0"
 
 [profile.release]
 opt-level = 'z'
