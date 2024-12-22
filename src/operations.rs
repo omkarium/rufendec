@@ -105,7 +105,7 @@
         if illegal_locations.contains(&source_dir.to_str().unwrap()) || illegal_locations.iter().any(|x| source_dir.starts_with(x)){
             
             log(LogLevel::ERROR, format!("Hey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.").as_str());
-            println!("\nHere is the list of paths your source directory path must never start with : {:?}", illegal_locations);
+            println!("\nHere is the list of paths your source directory path must never start with : \n{:?}", illegal_locations);
 
             process::exit(1); // Exit if an illegal path is observed.
         }
@@ -126,7 +126,7 @@
 
                         let file_path: PathBuf = entry.into_path().as_path().to_owned();
                         
-                        log(LogLevel::WARN, format!("Yikes! Found an encrypted file => {:?}, and there could be several.\nPlease ensure you are not providing already encrypted files. Doing double encryption won't help", file_path).as_str());
+                        log(LogLevel::ERROR, format!("Yikes! Found an encrypted file => {:?}, and there could be several.\n\nPlease ensure you are not encrypting already encrypted files. Doing double encryption won't help", file_path).as_str());
                         
                         process::exit(1); // Exit the program execution forcefully
                     }

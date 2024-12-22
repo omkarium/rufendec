@@ -1,5 +1,5 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-|  #### EXTREME WARNING ####                                                                                                  |
+|  #### NOTICE ####                                                                                                           |
 |                                                                                                                             |
 |  Most file encryption programs are destructive in nature. You MUST know what you are doing.                                 |
 |                                                                                                                             |
@@ -11,7 +11,7 @@
 |                                                                                                                             |
 |  1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.                           |
 |     Avoid using too many threads while processing large files. For example, say you have 10 files of each                   |
-|     1 GB and you are using 10 threads at once, then 10 GB of memory will be consumed.                                       |
+|     1 GB and you are using 10 threads at once, then 10 GB of memory could be consumed.                                      |
 |                                                                                                                             |
 |  2. It is recommended to not encrypt utf-8 incompatible files, for example binary files/executables.                        |
 |     It will either create or skip such files, but ensure you don't try to encrypt anything as                               |
@@ -25,7 +25,7 @@
 |     then do not use them with this program. The program does not refuse to work with them,                                  |
 |     but your files will be misplaced in weird locations because you had weird characters in your file and folder names.     |
 |                                                                                                                             |
-|  5. If you did not specify a target directory, then make sure you don't stop the process in between.                        |
+|  5. If you did not specify a target directory, then make sure you don't halt the program while its running.                 |
 |     Allow the operation to fully complete.                                                                                  |
 |                                                                                                                             |
 |                                                                                                                             |
