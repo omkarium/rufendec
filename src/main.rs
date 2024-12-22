@@ -61,10 +61,10 @@
 
     // Copyright (c) 2023 Venkatesh Omkaram
 
+    mod config;
     mod operations;
     mod log;
 
-    use clap::Parser;
     use crate::log::{log, LogLevel};
     use std::{borrow::Cow, fs, io::{stdin,stdout,Write}, path::PathBuf, time::Instant};
     use crate::operations::{
@@ -72,6 +72,8 @@
         DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT, VERBOSE, FILES_SIZE_BYTES
     };
     use crate::operations::{Operation, Mode};
+    use crate::config::Args;
+    use clap::Parser;
     use rpassword::prompt_password;
     use pbkdf2::pbkdf2_hmac_array;
     use sha2::Sha256;
@@ -80,43 +82,6 @@
     use human_bytes::human_bytes;
     use zeroize::Zeroize;
     use colored::Colorize;
-
-    // Using Clap library to provide the user with CLI argument parser and help section.
-    #[derive(Parser)]
-    #[command(author="@github.com/omkarium", version, about, long_about = None)]
-    struct Args {
-        /// Enter the Source Dir here (This is the directory you want to either Encrypt or Decrypt)
-        source_dir: String,
-        /// Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go).
-        /// But if you do not provide this, the target files will be placed in the Source Dir. 
-        /// To delete the source files make sure you pass option -d
-        target_dir: Option<String>,
-        /// Enter the password file with an extension ".omk". The first line in the file must have the password, and If you choose mode=gcm then ensure to pass the "Salt" in the 2nd line
-        #[arg(short, long, default_value_t = String::new())]
-        password_file: String,
-        /// Skip the password_file search on the machine if in case you decide to not provide the password_file in the CLI options
-        #[clap(short, long, default_value_t = false)]
-        skip_passwd_file_search: bool, 
-        /// Enter the Operation you want to perform on the Source Dir
-        #[clap(short, long, value_enum)]    
-        operation: Operation,
-        /// Provide the mode of Encryption here
-        #[clap(short, long, value_enum, default_value_t = Mode::GCM)]    
-        mode: Mode,
-        /// Pass this option to delete the source files in the Source Dir
-        #[clap(short, long, default_value_t = false)]
-        delete_src: bool,
-        /// Threads to speed up the execution
-        #[clap(short, long, default_value_t = 8)]
-        threads: usize,
-        /// Iterations for PBKDF2
-        #[clap(short, long, default_value_t = 60_000)]
-        iterations: u32,
-        /// Print verbose output
-        #[clap(short, long, default_value_t = false)]
-        verbose: bool    
-
-    }
 
     /* This function can be used for all sorts of confirmation input from the user. */
     fn confirmation() -> String {
