@@ -62,96 +62,29 @@
     // Copyright (c) 2023 Venkatesh Omkaram
 
     mod config;
+    mod common;
     mod operations;
     mod log;
 
     use crate::log::{log, LogLevel};
-    use std::{borrow::Cow, fs, io::{stdin,stdout,Write}, path::PathBuf, time::Instant};
     use crate::operations::{
-        create_dirs, decrypt_files, encrypt_files, find_password_file, pre_validate_source, recurse_dirs, 
+        create_dirs, decrypt_files, encrypt_files, pre_validate_source, recurse_dirs, 
         DIR_LIST, ECB_32BYTE_KEY, FAILED_COUNT, FILE_LIST, GCM_32BYTE_KEY, SUCCESS_COUNT, VERBOSE, FILES_SIZE_BYTES
     };
+    use crate::common::{probe_password_file, confirmation};
     use crate::operations::{Operation, Mode};
     use crate::config::{Args, Command};
     use clap::Parser;
+    use std::{borrow::Cow, fs, path::PathBuf, time::Instant, env};
     use rpassword::prompt_password;
     use pbkdf2::pbkdf2_hmac_array;
     use sha2::Sha256;
     use aes_gcm::{Aes256Gcm, Key};
-    use std::env;
     use human_bytes::human_bytes;
     use zeroize::Zeroize;
     use colored::Colorize;
 
-    /* This function can be used for all sorts of confirmation input from the user. */
-    fn confirmation() -> String {
-        let mut confirmation: String=String::new();
 
-        print!("\nPlease type Y for yes, and N for no : ");
-
-        let _=stdout().flush();
-
-        stdin().read_line(&mut confirmation).expect("You entered incorrect response");
-
-        if let Some('\n')= confirmation.chars().next_back() {
-            confirmation.pop();
-        }
-
-        if let Some('\r')= confirmation.chars().next_back() {
-            confirmation.pop();
-        }
-
-        println!("\nYou typed: {}\n", confirmation);
-
-        confirmation
-    }
-
-    fn password_file_finder<F>(f: F) -> (Option<std::string::String>, Option<std::string::String>) 
-        where F : Fn() -> (Option<std::string::String>, Option<std::string::String>){
-
-        let file: String;
-        let mut lines: std::str::Lines<>;
-
-        // If the password file is not found then look for a password file
-                    
-        log(LogLevel::WARN, format!("Sorry, I did not find a password-file provided as a command-line option. Maybe you provided but forgot to pass the file with the '.omk' extension").as_str());
-        println!("\nSearching for a password file on your machine. It ends with the extension '.omk'");
-        
-        // find_password_file() helps to look for a password file
-        if let Some(o) = find_password_file() {
-            println!("\nDo you wish to use this file?");
-            if confirmation() == "Y" {
-                if let Ok(k) = fs::read_to_string(o) {
-                    
-                    file = k.clone();
-                    lines = file.trim().lines();
-                    (Some(lines.next().expect("Password is expected").to_owned()), Some(lines.next().expect("Salt is expected in the password-file").to_owned())) 
-                
-                } else {
-                    // The user chosen to use the password file found by the program, but the read failed
-
-                    println!("Failed the read the password file");
-                    println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
-                    
-                    // Prompt the user to input the password and salt manually
-                    //password_prompt()
-                    f()
-                }
-            } else {
-                // The password file is found in the system, but the user wished to not use it
-                
-                println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
-                
-                // Prompt the user to input the password and salt manually
-                f()
-            }
-        
-        } else {
-            // Prompt the user to input the password and salt manually because no password file is found on the system
-            println!("\nYou need to manually enter the credentials. Credentials will not be visible as you type.");
-            f()
-        }
-    }
 
     // Program execution begins here
     fn main() {
@@ -213,7 +146,7 @@
                 
                 } else {
                     if !options.skip_passwd_file_search {
-                        password_file_finder(|| { 
+                        probe_password_file(|| { 
                             (Some(prompt_password("\nEnter the Password: ").expect("You entered a bad password").trim().to_owned()),
                             Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
                         })
@@ -370,8 +303,6 @@
                         println!("Mode chosen                              : AES-256-{:?}", options.mode);
                         println!("\nThe encrypted files MUST be of '.enom' extension");
                         println!("\n{}", "Make sure you are not encrypting an already encrypted file and also ensure the file you are trying to decrypt has `.enom` extension, otherwise you are risking the file deletion if you are running the program in conjunction with -d flag CLI option".to_string().bright_red());
-    
-    
                         println!("\n**************************\n");
                     
                 }
@@ -387,7 +318,7 @@
 
                         if !options.supress_terminal && options.passwd.is_none() && options.salt.is_none() {
                             if !options.skip_passwd_file_search {
-                                password_file_finder(|| { 
+                                probe_password_file(|| { 
                                     (Some(prompt_password("\nEnter the Password: ").expect("You entered a bad password").trim().to_owned()),
                                     Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
                                 })
@@ -493,3 +424,5 @@
         };
         
     }
+
+

@@ -12,7 +12,7 @@
     use lazy_static::lazy_static;
     use rayon;
     pub use std::sync::Mutex;
-    use std::{env, fmt::Write, fs, path::PathBuf, process, sync::{Arc, RwLock}, time::Duration};
+    use std::{fmt::Write, fs, path::PathBuf, process, sync::{Arc, RwLock}};
     use walkdir::WalkDir;
     use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
@@ -172,43 +172,6 @@
         }
     }
 
-    // This function helps to find a password file with ".omk" extension on the users system
-    pub fn find_password_file() -> Option<PathBuf> {
-
-        let os_type = env::consts::OS;
-
-        // This specifies where to look for the file
-        let target_dir = match os_type {
-            "linux" => vec![".", "..", "../../", "/etc", "/root", "/home"],
-            "windows" => vec!["C:/WINDOWS/SYSTEM32/config", "."],
-            _ => vec!["."]
-        };
-
-        for i in target_dir {
-            let file_list: Vec<Result<walkdir::DirEntry, walkdir::Error>> = WalkDir::new(i).into_iter().collect();
-            log(LogLevel::INFO, format!("Searching this many files : {:?}. Please be patient", file_list.capacity()).as_str());
-            
-            let bar = ProgressBar::new_spinner(); // Create a Spinner
-            
-            for entry in WalkDir::new(i)
-            .follow_links(true)
-            .into_iter()
-            .filter_map(|e| e.ok()) {
-                
-                bar.enable_steady_tick(Duration::from_millis(100)); // Steadily spin the spinner
-
-                let f_name = entry.file_name().to_string_lossy();
-
-                if f_name.ends_with(".omk") {
-                    println!("\nFound this => {:?}", entry.clone().into_path());
-                    let file_path: PathBuf = entry.into_path().as_path().to_owned();
-                    return Some(file_path);
-                }
-            } // end of inner for loop
-        }
-            return None;
-
-    }
 
     // Creates the target directory and sub-directories by operating on the Paths.
     pub fn create_dirs(
