@@ -9,7 +9,11 @@ use sha2::Sha256;
 use aes_gcm::{Aes256Gcm, Key};
 use zeroize::Zeroize;
 
-use crate::{common::probe_password_file, config::Command, display::terminal_supress, log::{log, LogLevel}, operations::{Mode, ECB_32BYTE_KEY, GCM_32BYTE_KEY}};
+use crate::{common::probe_password_file, 
+            config::Command, 
+            display::terminal_supress, 
+            log::{log, LogLevel}, 
+            operations::{Mode, ECB_32BYTE_KEY, GCM_32BYTE_KEY}};
 
 pub struct Secrets {
     password_file: String,
@@ -20,6 +24,7 @@ pub struct Secrets {
     skip_passwd_file_search: bool,
     iterations: u32
 }
+
 pub fn passwd_salt_tuple_from_prompt(secrets : &Secrets) -> (Option<std::string::String>, Option<std::string::String>) {
     {if !secrets.skip_passwd_file_search {
         probe_password_file(|| { 
@@ -31,8 +36,8 @@ pub fn passwd_salt_tuple_from_prompt(secrets : &Secrets) -> (Option<std::string:
         Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
     }}
 }
-pub fn generate_keys(command: &Command) {
 
+pub fn generate_keys(command: &Command) {
     let secrets = match command {
         Command::Dir(dir_options) => Secrets {
             password_file: dir_options.password_file.clone().unwrap_or_else(|| "".to_string()),
@@ -125,7 +130,6 @@ pub fn generate_keys(command: &Command) {
             );
 
     pb.set_message("Generating a secure key based on PBKDF2 HMAC (SHA256) function");
-
     // Use let salt = SaltString::generate(&mut OsRng) to generate a truly random salt;
 
     // Using the PBKDF2 SHA256 function generate a 32 byte key array based on the password and the salt provided as bytes, and the number of iterations
@@ -136,12 +140,10 @@ pub fn generate_keys(command: &Command) {
 
     // Helps to get encryption credentials from the user
     match secrets.mode {
-                        
         Mode::ECB => {
             // ECB_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a RwLock which is needed for Multithreading
             ECB_32BYTE_KEY.write().unwrap().push(key_gen);
         },
-
         Mode::GCM => {
             // GCM_32BYTE_KEY is a vec which holds the key_gen. This is done because &GenericArray<> cannot be easily passed into a RwLock which is needed for Multithreading
             GCM_32BYTE_KEY.write().unwrap().push(key_gen);            
@@ -153,9 +155,7 @@ pub fn generate_keys(command: &Command) {
     });
 
     key.zeroize();
-    key_gen.zeroize();
-
-    
+    key_gen.zeroize();    
 }
 
 pub fn clear_keys() {
