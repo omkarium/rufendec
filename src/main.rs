@@ -2,61 +2,9 @@
 //!
 //! #### Developer: Venkatesh Omkaram
 //!
-//! Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption.
-//! This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory. Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
+//! Rufendec is a lightweight CLI tool for AES-256 encryption and decryption, preserving file names and directory structure. 
+//! With support for ECB/GCM modes, it simplifies securing and restoring files with ease, all powered by Rust.
 //!
-//! ## How to Use
-//! This is a binary crate, so its obvious that you need to use this as an executable.
-//! First have cargo install and then run `cargo install rufendec`
-//! Next, go to the location of the binary and run the executable
-//!
-//! ### Example
-//! If you run cargo run -- --help or ./rufendec --help. You will get this response
-//! ```
-//! Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool designed for AES-256 encryption and decryption.
-//! This tool simplifies the process of securing  the contents of a user specified source directory. Operating in ECB/GCM modes, Rufendec maintains the original file names and sub-directory structure in the target directory.
-//! Explore the simplicity of Rust for robust encryption and decryption tasks with Rufendec.
-
-//! Usage: rufendec [OPTIONS] --operation <OPERATION> <SOURCE_DIR> [TARGET_DIR]
-
-//! Arguments:
-//! <SOURCE_DIR>  Enter the Source Dir here (This is the directory you want to either Encrypt or Decrypt)
-//! [TARGET_DIR]  Enter the Target Dir here (This is the place where your Encrypted or Decrypted files will go). But if you do not provide this, the target files will be placed in the Source Dir. To delete the source files make sure you pass option -d
-
-//! Options:
-//! -d, --delete-src                       Pass this option to delete the source files in the Source Dir
-//! -p, --password-file <PASSWORD_FILE>    Enter the password file with an extension ".omk". The first line in the file must have the password, and If you choose mode=gcm then ensure to pass the "Salt" in the 2nd line [default: ]
-//! -o, --operation <OPERATION>            Enter the Operation you want to perform on the Source Dir [possible values: encrypt, decrypt]
-//! -t, --threads <THREADS>                Threads to speed up the execution [default: 8]
-//! -m, --mode <MODE>                      Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
-//! -i, --iterations <ITERATIONS>          Iterations --mode=gcm [default: 60000]
-//! -v, --verbose                          Print verbose output
-//! -h, --help                             Print help
-//! -V, --version                          Print version
-//! ```
-//! for example, say if you want to encrypt all the files in directory say `./source-dir` using a password (example password: **Thisi/MyKeyT0Encrypt**) which is maintained in a passwordfile, and create a target directory say `./target-dir` which will hold the encrypted files
-//! by **retaining the complete folder structure of the source-dir and its sub-directories in the target-dir**, then you can run the command like this
-//! ```
-//! cargo run ../source-dir ../target-dir --password-file=../passwordfile --operation=encrypt --mode=gcm
-//! ```
-//!
-//! Next, say you deleted the source-dir after encryption, and now you want the decrypted files and their respective directory structure back.
-//! To decrypt the encrypted files inside the target-dir you currently have, just run the below command. Once finished, your original files will be back in your source-dir
-//! ```
-//! cargo run ../target-dir ../source-dir --password-file=../passwordfile --operation=decrypt --mode=gcm
-//! ```
-//! In the above examples, the names `source-dir` and `target-dir` are arbitrary. You can use any names to your source and target directories.
-//!
-//! *Also, when you choose GCM mode, you have to pass a salt in the 2nd line after specifying the password in th 1st line. But if you go for ECB mode, you don't need to specify a salt.
-//! In either case, the password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2.*
-//!
-//! Example context inside a ./passwordfile
-//! ```
-//! Som3RandPa$$wdOfAnyLength
-//! SomethingSaltIGiveOfAnyLength
-//! ```
-
-// The lines above are used to generate Rust documentation. Program code starts from the below.
 
 // Copyright (c) 2023 Venkatesh Omkaram
 
