@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/omkarium/rufendec"
 homepage = "https://github.com/omkarium/rufendec"
 readme = "README.md"
-keywords = ["aes", "aes-256", "aes-gcm", "encryption", "encrypt", "decrypt"]
+keywords = ["aes-256", "aes-gcm", "encrypt", "decrypt", "filesystem" ]
 categories = ["cryptography"]
 rust-version = "1.75.0"
 
