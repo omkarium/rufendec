@@ -4,6 +4,12 @@ use std::{env, path::PathBuf};
 use crate::{config::Command, operations::{DIR_LIST, FILES_SIZE_BYTES, FILE_LIST}};
 use human_bytes::human_bytes;
 
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::MetadataExt;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::MetadataExt;
+
 pub fn terminal_supress<F>(command: &Command,f: F) 
 where F: Fn() {
     match command {
@@ -19,12 +25,15 @@ where F: Fn() {
 }
 
 pub fn display_operational_info(command: &Command) {
-
+    let binding: String;
     let command_deconstruct = match command {
         Command::Dir(options) => (
             "directory", 
             &options.source_dir, 
-            &options.target_dir.clone().unwrap_or("Not Specified".to_string()),
+            {
+                binding = options.target_dir.clone().unwrap_or("Not Specified".to_string());
+                &binding
+            },
             options.delete_src,
             human_bytes(*FILES_SIZE_BYTES.lock().unwrap() as f64),
             options.threads,
@@ -34,21 +43,35 @@ pub fn display_operational_info(command: &Command) {
         Command::File(options) => (
             "file", 
             &options.source_file, 
-            &options.target_dir.clone().unwrap_or("Not Specified".to_string()),
+            {
+                binding = options.target_dir.clone().unwrap_or("Not Specified".to_string());
+                &binding
+            },            
             options.delete_src,
             {
                 let source_file = &PathBuf::from(&options.source_file);
+                let mut file_size= String::new();
                 if let Ok(total_files_size) = source_file.metadata() {
-                    #[cfg(target_os = "linux")]
-                    use std::os::unix::fs::MetadataExt;
-    
-                    #[cfg(target_os = "windows")]
-                    use std::os::windows::fs::MetadataExt;
 
-                    human_bytes(total_files_size.size() as f64)
+
+                    if cfg!(unix) {
+                        #[cfg(target_os = "linux")]
+                        {
+                            file_size = human_bytes(total_files_size.size() as f64)
+                        }
+                    } else if cfg!(windows) {
+                        #[cfg(target_os = "windows")]
+                        {
+                            file_size = human_bytes(total_files_size.file_size() as f64)
+                        }
+                    }
+
+                    
                 } else {
-                    "NA".to_string()
+                    file_size = "NA".to_string()
                 }
+
+                file_size
             },
             1,
             &options.operation,

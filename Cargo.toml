@@ -1,6 +1,6 @@
 [package]
 name = "rufendec"
-version = "0.8.0"
+version = "0.8.2"
 edition = "2021"
 description = "Rufendec is a lightweight CLI tool for AES-256 encryption and decryption, preserving file names and directory structure. With support for ECB/GCM modes, it simplifies securing and restoring files with ease, all powered by Rust."
 authors = ["Venkatesh Omkaram"]
