@@ -8,8 +8,12 @@
 
 Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-256 encryption and decryption, preserving file names and directory structure. With support for ECB/GCM modes, it simplifies securing and restoring files with ease, all powered by Rust.
 
+### Use cases
+- Encrypt your files and retain the directory structure, so you can upload to a cloud storage for backup. This is especially useful when your backup medium does not support FDE. Moreover, you can target a particular file(s) or folder(s) for decryption from your backup.
+- Unlike FDE's like LUKS and Bitlocker which does block level encryption, files won't get corrupted as this is file level encryption.
+
 ### Features
-- Encrypt and decrypt multiple files when operating on directory level using AES-256 GCM and ECB modes. GCM is chosen as the default mode.
+- Encrypt and decrypt multiple files when operating on the directory level using AES-256 GCM and ECB modes. GCM is chosen as the default mode.
 - Encrypt and decrypt a single file.
 - Suppress all terminal I/O while working on a single file.
 - The program is multi-threaded, so the user can manually choose the number of threads.
@@ -23,9 +27,9 @@ Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-2
 - Verbose output using "-v" option.
 
 ## How to Use
-This is a rust binary crate, so treat it as an executable. If you already know what Cargo is and how to use it, then go ahead and install by running the command `cargo install rufendec`
+``Method 1``: This is a rust binary crate, so treat it as an executable. If you already know what Cargo is, how to install and use it, then go ahead and install by running the command `cargo install rufendec`. However, if you do not wish to install this program on your system permanently, then CD (change directory) into the cloned git repo and run `cargo run -- --help`.
 
-If you have the executable/binary file then try running the program using the command `rufendec --help`. However, if you do not wish to install this program on your system permanently, then CD (change directory) into the cloned git repo and run `cargo run -- --help`.
+`Method 2`: If you download the executable/binary file taken from the release files in the github repo (which is the easiest method), then try running the program using the command `./rufendec --help` in the folder where the executable is located. 
 
 Either way, the result of executing Rufendec will be something similar to the below.
 
@@ -65,7 +69,7 @@ Arguments:
 
 Options:
   -f, --password-file <PASSWORD_FILE>  Specify the password file with an extension ".omk". The first line in the file must have the password, and the second line must have the salt
-  -k, --skip-passwd-file-search        Skip the password_file search on the machine if in case you decide to not provide the password_file in the CLI options
+  -k, --skip-passwd-file-search        Skip the password_file search on the machine in case you decided to not provide the password_file in the CLI options
   -o, --operation <OPERATION>          Specify the Operation you want to perform on the Source Directory [possible values: encrypt, decrypt]
   -m, --mode <MODE>                    Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
   -d, --delete-src                     Pass this option to delete the source files in the Source Directory
@@ -88,8 +92,8 @@ Arguments:
 
 Options:
   -f, --password-file <PASSWORD_FILE>  Specify the password file with an extension ".omk". The first line in the file must have the password, and the second line must have the salt
-  -k, --skip-passwd-file-search        Skip the password_file search on the machine in case you decide to not provide the `password_file` in the CLI options
-  -p, --passwd <PASSWD>                Specify the password (in case `password_file` is not provided and `supress_terminal`` is set to true)
+  -k, --skip-passwd-file-search        Skip the password_file search on the machine in case you decided to not provide the `password_file` in the CLI options
+  -p, --passwd <PASSWD>                Specify the password (in case `password_file` is not provided and `supress_terminal` is set to true)
   -s, --salt <SALT>                    Specify the salt (in case `password_file` is not provided and `supress_terminal` is set to true)
   -o, --operation <OPERATION>          Specify the Operation you want to perform on the Source file [possible values: encrypt, decrypt]
   -m, --mode <MODE>                    Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
@@ -198,7 +202,9 @@ SomethingSaltIGiveOfAnyLength
 
 ### In-Place Encryption and Decryption
 
-If you do not wish to create a separate target directory whether it is to place the encrypted or decrypted files, then you should not pass the [TARGET_DIR] argument in the command line. Along with that, you must send the `-d` option to delete the source files in the <SOURCE_DIR>, otherwise both the source and target files would end up in the same source directory
+If you do not wish to create a separate target directory whether it is to place the encrypted or decrypted files, then you should not pass the [TARGET_DIR] argument in the command line. Along with that, you must send the `-d` option to delete the source files in the <SOURCE_DIR>, otherwise both the source and target files would end up in the same source directory. 
+
+But beware that delete only removes the links of inodes from your filesystem. The source files could still exist on your device. Hence, it is recommended to not use the delete option, and shred the source files using programs like 'shred' in linux separately. However, if your device is an SSD, due to the nature of SSD's having extra sectors than listed for redundancy, some of your files could creep into sectors which are considered dead and your OS cannot touch or be aware of such bad/illegal sectors, so shred may not truly delete the file. Hence, it is adviced to use HDDs to store and wipe data. Some SSD's also come with secure wipe provided by the manfucturer. If security is a MUST for you, then its better to go with FDE.
 
 --------------------------------------
 

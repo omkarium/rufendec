@@ -15,7 +15,7 @@ pub struct DirOptions {
     /// Specify the password file with an extension ".omk". The first line in the file must have the password, and the second line must have the salt
     #[arg(short = 'f', long)]
     pub password_file: Option<String>,
-    /// Skip the password_file search on the machine if in case you decide to not provide the password_file in the CLI options
+    /// Skip the password_file search on the machine in case you decided to not provide the password_file in the CLI options
     #[clap(short = 'k', long, default_value_t = false)]
     pub skip_passwd_file_search: bool,
     /// Specify the Operation you want to perform on the Source Directory
@@ -50,10 +50,10 @@ pub struct FileOptions {
     /// Specify the password file with an extension ".omk". The first line in the file must have the password, and the second line must have the salt
     #[arg(short = 'f', long)]
     pub password_file: Option<String>,
-    /// Skip the password_file search on the machine in case you decide to not provide the `password_file` in the CLI options
+    /// Skip the password_file search on the machine in case you decided to not provide the `password_file` in the CLI options
     #[clap(short = 'k', long, default_value_t = false)]
     pub skip_passwd_file_search: bool,
-    /// Specify the password (in case `password_file` is not provided and `supress_terminal`` is set to true)
+    /// Specify the password (in case `password_file` is not provided and `supress_terminal` is set to true)
     #[arg(short, long)]
     pub passwd: Option<String>,
     /// Specify the salt (in case `password_file` is not provided and `supress_terminal` is set to true)

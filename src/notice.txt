@@ -5,9 +5,9 @@
 |                                                                                                                             |
 |  Before you encrypt files, kindly take this as a strict caution and don't forget to take a backup of your files.            |
 |                                                                                                                             |
-|  =======================================                                                                                    |
-|  Rules to remember                                                                                                          |
-|  =======================================                                                                                    |
+|  ================                                                                                                           |
+|  $    Rules     $                                                                                                           |
+|  ================                                                                                                           |
 |                                                                                                                             |
 |  1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.                           |
 |     Avoid using too many threads while processing large files. For example, say you have 10 files of each                   |

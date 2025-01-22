@@ -46,7 +46,7 @@ where
 
     // If the password file is not found then look for a password file
 
-    log(LogLevel::WARN, format!("Sorry, I did not find a password-file provided as a command-line option. Maybe you provided but forgot to pass the file with the '.omk' extension").as_str());
+    log(LogLevel::WARN, format!("Sorry, I did not find a password-file provided as a command-line option. Maybe you provided, but forgot to pass the file with the '.omk' extension").as_str());
     println!("\nSearching for a password file on your machine. It ends with the extension '.omk'");
 
     // find_password_file() helps to look for a password file

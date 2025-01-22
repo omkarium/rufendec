@@ -20,6 +20,7 @@ pub struct Secrets {
     skip_passwd_file_search: bool,
     iterations: u32
 }
+
 pub fn passwd_salt_tuple_from_prompt(secrets : &Secrets) -> (Option<std::string::String>, Option<std::string::String>) {
     {if !secrets.skip_passwd_file_search {
         probe_password_file(|| { 
@@ -31,6 +32,7 @@ pub fn passwd_salt_tuple_from_prompt(secrets : &Secrets) -> (Option<std::string:
         Some(prompt_password("\nEnter the Salt: ").expect("You entered a bad salt").trim().to_owned()))
     }}
 }
+
 pub fn generate_keys(command: &Command) {
 
     let secrets = match command {
