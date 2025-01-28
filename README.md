@@ -8,9 +8,12 @@
 
 Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-256 encryption and decryption, preserving file names and directory structure. With support for ECB/GCM modes, it simplifies securing and restoring files with ease, all powered by Rust.
 
-### Use cases
-- Encrypt your files and retain the directory structure, so you can upload to a cloud storage for backup. This is especially useful when your backup medium does not support FDE. Moreover, you can target a particular file(s) or folder(s) for decryption from your backup.
-- Unlike FDE's like LUKS and Bitlocker which does block level encryption, files won't get corrupted as this is file level encryption.
+### Use Case
+- <ins>**Encrypt files while preserving directory structure**</ins>: This allows you to upload encrypted files to cloud storage for backup. It's especially useful when your backup medium doesn’t support Full Disk Encryption (FDE). Additionally, it enables you to target specific files or folders for decryption from the backup, providing greater flexibility.
+
+- <ins>**File-level encryption vs. block-level encryption**</ins>: Unlike Full Disk Encryption solutions like LUKS or BitLocker, which encrypt at the block level and can suffer from potential issues like sector header corruption, this tool performs file-level encryption. This minimizes the risk of file corruption and ensures that only the encrypted files are affected, not the entire disk.
+
+- <ins>**Use on embedded devices or mobile platforms**</ins>: This tool is particularly useful for encrypting files on embedded devices or mobile platforms where Full Disk Encryption (FDE) may not be supported. These devices often have limited resources, or their operating systems may not support full disk encryption, making file-level encryption an ideal solution for securing sensitive data without requiring FDE.
 
 ### Features
 - Encrypt and decrypt multiple files when operating on the directory level using AES-256 GCM and ECB modes. GCM is chosen as the default mode.
@@ -24,6 +27,7 @@ Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-2
 - Prevents accidentally encrypting directories such as /, /etc, /bin, /sbin etc. We have totally 23 illegal locations defined in the program.
 - In-place file encryption and decryption is possible if the target directory is not specified as a Command line argument, but use in conjunction with "-d" option.
 - Source files can be deleted by passing the "-d" option.
+- Shred the source files instead of delete.
 - Verbose output using "-v" option.
 
 ## How to Use
@@ -61,7 +65,11 @@ For `rufendec dir --help`
 ```
 Targets on the directory/folder level
 
-Usage: rufendec dir [OPTIONS] --operation <OPERATION> <SOURCE_DIR> [TARGET_DIR]
+Usage: rufendec dir [OPTIONS] --operation <OPERATION> <SOURCE_DIR> [TARGET_DIR] [COMMAND]
+
+Commands:
+  shred  Shreds the source files
+  help   Print this message or the help of the given subcommand(s)
 
 Arguments:
   <SOURCE_DIR>  Specify the Source Directory here
@@ -84,7 +92,11 @@ For `rufendec file --help`
 ```
 Targets on the file level
 
-Usage: rufendec file [OPTIONS] --operation <OPERATION> <SOURCE_FILE> [TARGET_DIR]
+Usage: rufendec file [OPTIONS] --operation <OPERATION> <SOURCE_FILE> [TARGET_DIR] [COMMAND]
+
+Commands:
+  shred  Shreds the source files
+  help   Print this message or the help of the given subcommand(s)
 
 Arguments:
   <SOURCE_FILE>  Specify the Source file here (This is the file you want to either Encrypt or Decrypt)
@@ -93,13 +105,13 @@ Arguments:
 Options:
   -f, --password-file <PASSWORD_FILE>  Specify the password file with an extension ".omk". The first line in the file must have the password, and the second line must have the salt
   -k, --skip-passwd-file-search        Skip the password_file search on the machine in case you decided to not provide the `password_file` in the CLI options
-  -p, --passwd <PASSWD>                Specify the password (in case `password_file` is not provided and `supress_terminal` is set to true)
-  -s, --salt <SALT>                    Specify the salt (in case `password_file` is not provided and `supress_terminal` is set to true)
+  -p, --passwd <PASSWD>                Specify the password (in case `password_file` is not provided and `suppress_terminal` is set to true)
+  -s, --salt <SALT>                    Specify the salt (in case `password_file` is not provided and `suppress_terminal` is set to true)
   -o, --operation <OPERATION>          Specify the Operation you want to perform on the Source file [possible values: encrypt, decrypt]
   -m, --mode <MODE>                    Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
   -d, --delete-src                     Pass this option to delete the source file
   -i, --iterations <ITERATIONS>        Iterations for PBKDF2 [default: 60000]
-  -z, --supress-terminal               Supress all CLI output
+  -z, --suppress-terminal              Suppress all CLI output
   -v, --verbose                        Print verbose output
   -h, --help                           Print help
 ```
@@ -181,12 +193,12 @@ To decrypt a source file and place it in the same source directory, without dele
 rufendec file -o decrypt ../source-file -k
 ```
 
-To decrypt a source file and place it in the same source directory, but deleting the source file, and to skip the password file search on the machine and provide the password and salt as CLI options
+To decrypt a source file and place it in the same source directory, but delete the source file, and to skip the password file search on the machine and provide the password and salt as CLI options
 ```
 rufendec file -o decrypt ../source-file -d -k -p [YOUR_PASSWORD] -s [YOUR_SALT]
 ```
 
-To decrypt a source file and place it in the same source directory, but deleting the source file, and to skip the password file search on the machine and provide the password and salt as CLI options, and supress all terminal Input output. Note: while using `-z` you must use `-p` and `-s`, or atleast do not use `-k`. This mean using `-kz` without `-p` and `-s` won't work.
+To decrypt a source file and place it in the same source directory, but delete the source file, and to skip the password file search on the machine and provide the password and salt as CLI options, and suppress all terminal Input output. Note: while using `-z` you must use `-p` and `-s`, or atleast do not use `-k`. This mean using `-kz` without `-p` and `-s` won't work.
 ```
 rufendec file -o decrypt ../source-file -p [YOUR_PASSWORD] -s [YOUR_SALT] -dkz
 ```
@@ -204,7 +216,28 @@ SomethingSaltIGiveOfAnyLength
 
 If you do not wish to create a separate target directory whether it is to place the encrypted or decrypted files, then you should not pass the [TARGET_DIR] argument in the command line. Along with that, you must send the `-d` option to delete the source files in the <SOURCE_DIR>, otherwise both the source and target files would end up in the same source directory. 
 
-But beware that delete only removes the links of inodes from your filesystem. The source files could still exist on your device. Hence, it is recommended to not use the delete option, and shred the source files using programs like 'shred' in linux separately. However, if your device is an SSD, due to the nature of SSD's having extra sectors than listed for redundancy, some of your files could creep into sectors which are considered dead and your OS cannot touch or be aware of such bad/illegal sectors, so shred may not truly delete the file. Hence, it is adviced to use HDDs to store and wipe data. Some SSD's also come with secure wipe provided by the manfucturer. If security is a MUST for you, then its better to go with FDE.
+Note: `-d` will be ignored if `shred` subcommand is used which is explained in the next section.
+
+#### Important Considerations on Deleting and Shredding Files:
+
+When you delete files, it typically only removes the links to the inodes in the filesystem, but the actual data may still exist on your device. For better security, it's recommended not to rely on the delete option alone. Instead, you should use tools like shred (on Linux) to securely overwrite and remove the source files. However, if your device is an SSD, there are additional considerations. Due to the nature of SSDs, which have extra sectors for redundancy, some data might be written to sectors that are considered “bad” or “dead.” These sectors cannot be accessed or recognized by your operating system, meaning the data could persist beyond your control, and shred may not fully erase it.
+
+As a result, it is generally recommended to use HDDs for secure storage and wiping of sensitive data. Additionally, frequent shredding on SSDs is not ideal, as it can wear out the drive more quickly. Some SSDs come with a built-in secure wipe feature provided by the manufacturer, which can be a better option for securely erasing data. However, if data security is a top priority, Full Disk Encryption (FDE) is still the most reliable method for ensuring that your data remains secure.
+
+Moreover, using the `-d` option is much faster in performance than `shred`.
+
+### Source File Shred SubCommand
+
+Rufendec comes with a basic `shred` subcommand available for both `dir` and `file` commands. Use this feature if you do not just want to delete the source files but shred them instead. The way this works is, the program overwrites the source files data over multiple iterations and also rename them several times before deleting. So shred is more like 
+
+overwrite * (n) + rename * (n) + delete. 
+
+where n is the number of iterations.
+
+try `rufendec dir shred --help` and `rufendec file shred --help`
+
+Also, shred comes with defaults if you use it, but if you don't use it, nothing would happen to your source files.
+
 
 --------------------------------------
 
@@ -223,25 +256,20 @@ Kindly take backup of whatever you are encrypt first. I repeat, BACKUP BACKUP BA
 
 If you find any security vulnerabilities in code, please submit an issue privately.
 
------------------
-Rules to follow
------------------
+---------------
+Rules to Follow
+---------------
+1. Avoid Decrypting Unencrypted Files or Encrypting Already Encrypted Files: Make sure you're not attempting to decrypt files that haven't been encrypted, or encrypt files that are already encrypted.
 
-1. Make sure you are not trying to decrypt unencrypted files or encrypt already encrypted files.
-Avoid using too many threads while processing large files. For example, say you have 10 files of each 1 GB and you are using 10 threads at once, then 10 GB of memory could be consumed.
+2. Limit Threads for Large Files: When processing large files, avoid using too many threads. For instance, if you have 10 files of 1 GB each and are using 10 threads simultaneously, your system could use up to 10 GB of memory.
 
-2. It is recommended to not encrypt utf-8 incompatible files, for example binary files/executables.
-It will either create or skip such files, but ensure you don't try to encrypt anything as such in the first place. If done so, the later you decrypt them, the binaries may or may not work.
+3. Do Not Encrypt UTF-8 Incompatible Files: It's recommended to avoid encrypting files that aren't compatible with UTF-8, such as binary files or executables. The tool may either skip or create such files, but if encrypted, they may not function properly when decrypted. Always avoid encrypting such files in the first place.
 
-3. If you have encrypted files with --mode=gcm, and you tried to decrypt with --mode=ecb, 
-  then the program will generate your decrypted target files, but those WILL get corrupted filled with gibberish.
+4. Avoid Special Characters in File and Folder Names: If your file or folder names contain characters other than alphanumeric ones (spaces are fine), do not use them with this program. While the program won’t prevent you from using them, your files may be misplaced in unexpected locations due to these characters.
 
-4. If you have characters other than Alphanumeric (spaces are fine) in your folder and file names, then do not use them with this program. The program does not refuse to work with them, but your files will be misplaced in weird locations because you had weird characters in your file and folder names.
+5. Do Not Interrupt the Process: If you haven't specified a target directory, do not interrupt the process mid-way. Allow the operation to complete fully to avoid any issues with your files.
 
-5. If you did not specify a target directory, then make sure you don't stop the process in between. 
-   Allow the operation to fully complete.
-
-Ensure you provide the correct files for the operation you choose. Do some dummy tests before using on important files
+6. Perform Test Runs Before Using on Important Files: Always ensure that you're providing the correct files for the operation. Run some test cases on dummy files before using the tool on important data to avoid errors.
 
 USE AT YOUR OWN RISK!
 
@@ -250,29 +278,8 @@ USE AT YOUR OWN RISK!
 
 Yes. This software do require maintenance, but only in two cases. 
 
-1. If the Dependent crates in Cargo.toml change versions, and the authors yank the older versions. But that is very unlikely to happen. Even so, you can always find a compiled release here on github releases.
+1. If the Dependent crates in Cargo.toml change versions, and the authors yank the older versions. But that is very unlikely to happen. Even so, you can always find a compiled release here on github ![releases](https://github.com/omkarium/rufendec/releases).
 2. If someone finds a bug and reports it.
-
------------------------------
-### Benchmark Test (old test)
-
-CPU: Intel i5 (4cores) @ 3.300GHz
-
-GPU: Intel 2nd Generation Core Processor Family
-
-RAM: 11835 MiB
-
-Linux Mint 21.1 X86_64
-
-Target folders created : 1431
-
-Target files created: 6435
-
-Source Folder Size: 1.6 GiB
-
-Encryption took 13 seconds at the rate of 123 MiB/sec
-
-Decryption took 11 seconds at the rate of 145.5 MiB/sec
 
 ------------------------
 ### Demo (This demo is for an old version <=0.7.0)

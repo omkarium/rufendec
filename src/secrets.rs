@@ -9,14 +9,14 @@ use sha2::Sha256;
 use aes_gcm::{Aes256Gcm, Key};
 use zeroize::Zeroize;
 
-use crate::{common::probe_password_file, config::Command, display::terminal_supress, log::{log, LogLevel}, operations::{Mode, ECB_32BYTE_KEY, GCM_32BYTE_KEY}};
+use crate::{common::probe_password_file, config::Command, display::terminal_suppress, log::{log, LogLevel}, operations::{Mode, ECB_32BYTE_KEY, GCM_32BYTE_KEY}};
 
 pub struct Secrets {
     password_file: String,
     passwd: Option<String>,
     salt: Option<String>,
     mode: Mode,
-    supress_terminal: bool,
+    suppress_terminal: bool,
     skip_passwd_file_search: bool,
     iterations: u32
 }
@@ -41,7 +41,7 @@ pub fn generate_keys(command: &Command) {
             passwd: None,
             salt: None,
             mode: dir_options.mode,
-            supress_terminal: false,
+            suppress_terminal: false,
             skip_passwd_file_search: dir_options.skip_passwd_file_search,
             iterations: dir_options.iterations
         },
@@ -50,7 +50,7 @@ pub fn generate_keys(command: &Command) {
             passwd: file_options.passwd.clone(),
             salt: file_options.salt.clone(),
             mode: file_options.mode,
-            supress_terminal: file_options.supress_terminal,
+            suppress_terminal: file_options.suppress_terminal,
             skip_passwd_file_search: file_options.skip_passwd_file_search,
             iterations: file_options.iterations
 
@@ -83,20 +83,20 @@ pub fn generate_keys(command: &Command) {
         match command {
             Command::Dir(_) => passwd_salt_tuple_from_prompt(&secrets),
             Command::File(_) => {
-                if !secrets.supress_terminal && secrets.passwd.is_none() && secrets.salt.is_none() {
+                if !secrets.suppress_terminal && secrets.passwd.is_none() && secrets.salt.is_none() {
                     passwd_salt_tuple_from_prompt(&secrets)
                 } else {
                     (Some(secrets.passwd.clone().unwrap_or_else(|| {
                             log(
                                 LogLevel::ERROR,
-                                "Password is expected since you did not provide a password file and the terminal IO is supressed. \n",
+                                "Password is expected since you did not provide a password file and the terminal IO is suppressed. \n",
                             );
                             std::process::exit(1)
                         })),
                     Some(secrets.salt.clone().unwrap_or_else(|| {
                             log(
                                 LogLevel::ERROR,
-                                "Salt is expected since you did not provide a password file and the terminal IO is supressed. \n",
+                                "Salt is expected since you did not provide a password file and the terminal IO is suppressed. \n",
                             );
                             std::process::exit(1)
                         }))
@@ -150,7 +150,7 @@ pub fn generate_keys(command: &Command) {
         }
     };
 
-    terminal_supress(command, || {
+    terminal_suppress(command, || {
         println!("\n\nKey generation complete ...\n\n");
     });
 

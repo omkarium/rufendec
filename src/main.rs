@@ -25,17 +25,18 @@ use crate::operations::{
 use crate::operations::{Mode, Operation};
 use clap::Parser;
 use colored::Colorize;
-use display::{display_operational_info, terminal_supress};
+use display::{display_operational_info, terminal_suppress};
 use human_bytes::human_bytes;
 use secrets::{clear_keys, generate_keys, verify_keys_cleared};
 use std::{borrow::Cow, path::PathBuf, time::Instant};
+
 
 // Program execution begins here
 fn main() {
     // Get the input arguments and options from the CLI passed by the user
     let command = Args::parse().command;
 
-    terminal_supress(&command, || {
+    terminal_suppress(&command, || {
         println!(
             "\n@@@@@@@@@@@@@@@@@@@ Rufendec ({}) @@@@@@@@@@@@@@@@@@@\n",
             "by Omkarium".green().bold()
@@ -108,6 +109,7 @@ fn main() {
                             options.source_dir.as_str(),
                             target_dir,
                         );
+
                         encrypt_files(
                             FILE_LIST.lock().unwrap().to_vec(),
                             options.threads,
@@ -115,6 +117,7 @@ fn main() {
                             target_dir,
                             options.mode,
                             options.delete_src,
+                            &options.shred
                         );
                     }
                     Operation::Decrypt => {
@@ -131,6 +134,7 @@ fn main() {
                             target_dir,
                             options.mode,
                             options.delete_src,
+                            &options.shred
                         );
                     }
                 }
@@ -181,6 +185,7 @@ fn main() {
                 if *FAILED_COUNT.lock().unwrap() > 0 {
                     println!("\nLooks like we got some failures 😰");
                     println!("\nPlease check whether you provided the correct password (and the salt in case you are using GCM mode)");
+                    println!("\nCheck the Rules again!!! Especially Rule 1");
                     println!("\nFailures can also occur when you have the target files already present in the target directory");
                 } else {
                     match options.mode {
@@ -205,7 +210,7 @@ fn main() {
             *VERBOSE.write().unwrap() = options.verbose;
 
             if let Ok(_) = source_file.metadata() {
-                terminal_supress(&command, || display_operational_info(&command));
+                terminal_suppress(&command, || display_operational_info(&command));
 
                 generate_keys(&command);
 
@@ -226,6 +231,7 @@ fn main() {
                                     target_dir,
                                     options.mode,
                                     options.delete_src,
+                                    &options.shred
                                 );
                             }
                             Operation::Decrypt => {
@@ -236,6 +242,7 @@ fn main() {
                                     target_dir,
                                     options.mode,
                                     options.delete_src,
+                                    &options.shred
                                 );
                             }
                         }
@@ -245,7 +252,7 @@ fn main() {
                 clear_keys();
                 verify_keys_cleared(options.mode);
 
-                terminal_supress(&command, || {
+                terminal_suppress(&command, || {
                     println!("Successfully cleared the credentials from the memory");
 
                     println!(
