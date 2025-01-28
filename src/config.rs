@@ -24,7 +24,7 @@ pub struct DirOptions {
     /// Provide the mode of Encryption here
     #[clap(short, long, value_enum, default_value_t = Mode::GCM)]
     pub mode: Mode,
-    /// Pass this option to delete the source files in the Source Directory
+    /// Delete the source files in the Source Directory (Ignored if `shred` command is used)
     #[clap(short, long, default_value_t = false)]
     pub delete_src: bool,
     /// Threads to speed up the execution
@@ -36,7 +36,10 @@ pub struct DirOptions {
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
     pub verbose: bool,
+    #[command(subcommand)]
+    pub shred: Option<Shred>,
 }
+
 
 // Using Clap library to provide the user with CLI argument parser and help section.
 #[derive(clap::Args, Debug, Clone)]
@@ -53,10 +56,10 @@ pub struct FileOptions {
     /// Skip the password_file search on the machine in case you decided to not provide the `password_file` in the CLI options
     #[clap(short = 'k', long, default_value_t = false)]
     pub skip_passwd_file_search: bool,
-    /// Specify the password (in case `password_file` is not provided and `supress_terminal` is set to true)
+    /// Specify the password (in case `password_file` is not provided and `suppress_terminal` is set to true)
     #[arg(short, long)]
     pub passwd: Option<String>,
-    /// Specify the salt (in case `password_file` is not provided and `supress_terminal` is set to true)
+    /// Specify the salt (in case `password_file` is not provided and `suppress_terminal` is set to true)
     #[arg(short, long)]
     pub salt: Option<String>,
     /// Specify the Operation you want to perform on the Source file
@@ -65,19 +68,34 @@ pub struct FileOptions {
     /// Provide the mode of Encryption here
     #[clap(short, long, value_enum, default_value_t = Mode::GCM)]
     pub mode: Mode,
-    /// Pass this option to delete the source file
+    /// Delete the source file (Ignored if `shred` command is used)
     #[clap(short, long, default_value_t = false)]
     pub delete_src: bool,
     /// Iterations for PBKDF2
     #[clap(short, long, default_value_t = 60_000)]
     pub iterations: u32,
-    /// Supress all CLI output
+    /// Suppress all CLI output
     #[clap(short = 'z', long, default_value_t = false)]
-    pub supress_terminal: bool,
+    pub suppress_terminal: bool,
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
     pub verbose: bool,
+    #[command(subcommand)]
+    pub shred: Option<Shred>,
 }
+
+
+#[derive(clap::Args, Debug, Clone)]
+#[command(disable_version_flag = true)]
+pub struct ShredOptions {
+    /// Fill the source file(s) with random bytes over multiple iterations
+    #[clap(short, long, default_value_t = 5)]
+    pub random_iterations: u32,
+    /// Rename the file(s) while shredding multiple times
+    #[clap(short = 't', long, default_value_t = 10)]
+    pub rename_times: u32
+}
+
 
 #[derive(clap::Subcommand, Debug, Clone)]
 //#[command(disable_version_flag = true)]
@@ -87,6 +105,15 @@ pub enum Command {
     /// Targets on the file level
     File(FileOptions),
 }
+
+
+#[derive(clap::Subcommand, Debug, Clone)]
+//#[command(disable_version_flag = true)]
+pub enum Shred {
+    /// Shreds the source files
+    Shred(ShredOptions),
+}
+
 
 #[derive(Parser, Clone)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]

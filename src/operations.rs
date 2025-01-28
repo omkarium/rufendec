@@ -9,6 +9,7 @@ use aes_gcm::{
     Aes256Gcm, //, Nonce, Key // Or `Aes128Gcm`
 };
 use byte_aes::Aes256Cryptor;
+use file_shred::{shred, ShredConfig, Verbosity};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use lazy_static::lazy_static;
 use rayon;
@@ -28,7 +29,7 @@ use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 
-use crate::log::{log, LogLevel};
+use crate::{config::Shred, log::{log, LogLevel}};
 
 /* What do the above imports do?
 -----------------------
@@ -39,6 +40,7 @@ rayon - Helps to make the cipher operations multi-threaded
 std - Has some standard core features to find Operation system, read and write files, find time, Atomic Reference Counter, process to forcefully exit the program execution
 walkdir - Helps to walk through a given folder path
 indicatif - Has some fancy ProgressBar and Spinners to print on the screen
+file_shred - A basic file shred crate
 
 Read the Cargo.toml and Attributions to see which versions and the Authors who made these crates
 */
@@ -77,6 +79,15 @@ pub enum Operation {
 pub enum Mode {
     ECB,
     GCM,
+}
+
+impl Operation {
+    pub fn to_str(&self) -> &str {
+        match self {
+            Operation::Encrypt => "Encrypt",
+            Operation::Decrypt => "Decrypt",
+        }
+    }
 }
 
 impl std::fmt::Display for Mode {
@@ -265,7 +276,10 @@ pub fn encrypt_files(
     target_dir_name: &str,
     mode: Mode,
     delete_src: bool,
+    shred_options: &Option<Shred>
 ) {
+
+
     cipher_init(
         &file_list,
         thread_count,
@@ -298,12 +312,29 @@ pub fn encrypt_files(
                     // Write the encrypted bytes to new_file_name
                     let _ = fs::write(new_file_name, encrypted_bytes);
 
-                    // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
-                    if delete_src {
-                        if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
-                            logger!("Failed to delete the file :: {}", e);
-                        }
-                    }
+                    match &shred_options {
+                        Some(o) => match o {
+                            Shred::Shred(so) => {
+                                if let Err(e) = shred(&ShredConfig::non_interactive(
+                                    vec![&*file.clone().read().unwrap()],
+                                    Verbosity::Quiet,
+                                    false,
+                                    so.random_iterations,
+                                    so.rename_times,    
+                                )) {
+                                    logger!("Failed to shred the file :: {}", e);
+                                }
+                            },
+                        },
+                        None => {
+                            // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                            if delete_src {
+                                if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                    logger!("Failed to delete the file :: {}", e);
+                                }
+                            }
+                        },
+                    };
 
                     // Increment the ProgressBar if pb_bool is true. Happens when verbose printing is not chosen
                     if pb.bool {
@@ -348,12 +379,29 @@ pub fn encrypt_files(
 
                             *SUCCESS_COUNT.lock().unwrap() += 1;
 
-                            // Delete the source file
-                            if delete_src {
-                                if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
-                                    logger!("Failed to delete the file :: {}", e);
-                                }
-                            }
+                            match &shred_options {
+                                Some(o) => match o {
+                                    Shred::Shred(so) => {
+                                        if let Err(e) = shred(&ShredConfig::non_interactive(
+                                            vec![&*file.clone().read().unwrap()],
+                                            Verbosity::Quiet,
+                                            false,
+                                            so.random_iterations,
+                                            so.rename_times,    
+                                        )) {
+                                            logger!("Failed to shred the file :: {}", e);
+                                        }
+                                    },
+                                },
+                                None => {
+                                    // Delete the source file if delete_src is true.
+                                    if delete_src {
+                                        if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                            logger!("Failed to delete the file :: {}", e);
+                                        }
+                                    }
+                                },
+                            };
 
                             // Increment the ProgressBar
                             if pb.bool {
@@ -386,6 +434,7 @@ pub fn decrypt_files(
     target_dir_name: &str,
     mode: Mode,
     delete_src: bool,
+    shred_options: &Option<Shred>
 ) {
     cipher_init(
         &file_list,
@@ -430,11 +479,29 @@ pub fn decrypt_files(
 
                         *SUCCESS_COUNT.lock().unwrap() += 1;
 
-                        if delete_src {
-                            if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
-                                logger!("Failed to delete the file :: {}", e);
-                            }
-                        }
+                        match &shred_options {
+                            Some(o) => match o {
+                                Shred::Shred(so) => {
+                                    if let Err(e) = shred(&ShredConfig::non_interactive(
+                                        vec![&*file.clone().read().unwrap()],
+                                        Verbosity::Quiet,
+                                        false,
+                                        so.random_iterations,
+                                        so.rename_times,    
+                                    )) {
+                                        logger!("Failed to shred the file :: {}", e);
+                                    }
+                                },
+                            },
+                            None => {
+                                // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                                if delete_src {
+                                    if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                        logger!("Failed to delete the file :: {}", e);
+                                    }
+                                }
+                            },
+                        };
 
                         if pb.bool {
                             pb.inner
@@ -474,11 +541,29 @@ pub fn decrypt_files(
 
                     let _ = fs::write(new_file_name, decrypted_bytes);
 
-                    if delete_src {
-                        if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
-                            logger!("Failed to delete the file :: {}", e);
-                        }
-                    }
+                    match &shred_options {
+                        Some(o) => match o {
+                            Shred::Shred(so) => {
+                                if let Err(e) = shred(&ShredConfig::non_interactive(
+                                    vec![&*file.clone().read().unwrap()],
+                                    Verbosity::Quiet,
+                                    false,
+                                    so.random_iterations,
+                                    so.rename_times,    
+                                )) {
+                                    logger!("Failed to shred the file :: {}", e);
+                                }
+                            },
+                        },
+                        None => {
+                            // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                            if delete_src {
+                                if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                    logger!("Failed to delete the file :: {}", e);
+                                }
+                            }
+                        },
+                    };
 
                     if pb.bool {
                         pb.inner

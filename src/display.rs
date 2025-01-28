@@ -2,6 +2,7 @@
 
 use std::{env, path::PathBuf};
 use crate::{config::Command, operations::{DIR_LIST, FILES_SIZE_BYTES, FILE_LIST}};
+use colored::Colorize;
 use human_bytes::human_bytes;
 
 #[cfg(target_os = "linux")]
@@ -10,11 +11,11 @@ use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 
-pub fn terminal_supress<F>(command: &Command,f: F) 
+pub fn terminal_suppress<F>(command: &Command,f: F) 
 where F: Fn() {
     match command {
         Command::File(options) => {
-            if !options.supress_terminal {
+            if !options.suppress_terminal {
                 f()
             }
         },
@@ -38,7 +39,8 @@ pub fn display_operational_info(command: &Command) {
             human_bytes(*FILES_SIZE_BYTES.lock().unwrap() as f64),
             options.threads,
             &options.operation,
-            options.mode
+            options.mode,
+            &options.shred,
         ),
         Command::File(options) => (
             "file", 
@@ -75,7 +77,8 @@ pub fn display_operational_info(command: &Command) {
             },
             1,
             &options.operation,
-            options.mode
+            options.mode,
+            &options.shred
         )
     };
 
@@ -86,7 +89,16 @@ pub fn display_operational_info(command: &Command) {
     println!("Operating system                                  : {}", env::consts::OS);
     println!("The source {} you provided {:>width$}             : {}", command_deconstruct.0, " ".repeat(padding), command_deconstruct.1, width = padding);
     println!("The target directory you provided                 : {}", command_deconstruct.2);
-    println!("Delete the source file(s)?                        : {}", command_deconstruct.3);
+
+    let file_fate = if command_deconstruct.8.is_some() {
+        "Shred".to_string()
+    } else if command_deconstruct.3 {
+        "Delete".to_string()
+    } else {
+        "Neither (files won't be removed)".to_string()
+    };
+
+    println!("Shred or Delete the source file(s)?               : {}", file_fate.bright_green().bold().blink());
 
     if let Command::Dir(_) = command {
     println!("Total target sub-directories (to be created)      : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
@@ -95,7 +107,7 @@ pub fn display_operational_info(command: &Command) {
 
     println!("Total size of source {} {:>width$}                : {}", command_deconstruct.0, " ".repeat(padding), command_deconstruct.4, width = padding);
     println!("Total threads about to be used                    : {}", command_deconstruct.5);
-    println!("Operation chosen                                  : {:?}", command_deconstruct.6);
+    println!("Operation chosen                                  : {}", command_deconstruct.6.to_str().bright_blue().bold().blink());
     println!("Mode chosen                                       : AES-256-{:?}", command_deconstruct.7);
     println!("\nThe encrypted files MUST be of '.enom' extension");
     println!("\n**************************\n");
