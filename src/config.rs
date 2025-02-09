@@ -36,6 +36,9 @@ pub struct DirOptions {
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
     pub verbose: bool,
+    /// Anonymize source file names
+    #[clap(short, long, default_value_t = false)]
+    pub anon: bool,
     #[command(subcommand)]
     pub shred: Option<Shred>,
 }
@@ -80,6 +83,9 @@ pub struct FileOptions {
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
     pub verbose: bool,
+    /// Anonymize source file name
+    #[clap(short, long, default_value_t = false)]
+    pub anon: bool,
     #[command(subcommand)]
     pub shred: Option<Shred>,
 }

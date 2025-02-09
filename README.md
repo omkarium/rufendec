@@ -29,6 +29,7 @@ Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-2
 - Source files can be deleted by passing the "-d" option.
 - Shred the source files instead of delete.
 - Verbose output using "-v" option.
+- Anonymize source file names using "-a" option.
 
 ## How to Use
 ``Method 1``: This is a rust binary crate, so treat it as an executable. If you already know what Cargo is, how to install and use it, then go ahead and install by running the command `cargo install rufendec`. However, if you do not wish to install this program on your system permanently, then CD (change directory) into the cloned git repo and run `cargo run -- --help`.
@@ -84,6 +85,7 @@ Options:
   -t, --threads <THREADS>              Threads to speed up the execution [default: 8]
   -i, --iterations <ITERATIONS>        Iterations for PBKDF2 [default: 60000]
   -v, --verbose                        Print verbose output
+  -a, --anon                           Anonymize source file names
   -h, --help                           Print help
 ```
 
@@ -113,6 +115,7 @@ Options:
   -i, --iterations <ITERATIONS>        Iterations for PBKDF2 [default: 60000]
   -z, --suppress-terminal              Suppress all CLI output
   -v, --verbose                        Print verbose output
+  -a, --anon                           Anonymize source file name
   -h, --help                           Print help
 ```
 
@@ -238,6 +241,15 @@ try `rufendec dir shred --help` and `rufendec file shred --help`
 
 Also, shred comes with defaults if you use it, but if you don't use it, nothing would happen to your source files.
 
+### Anonymize feature
+
+Rufendec includes an Anonymize Filename feature. When you use the -a option with the dir or file subcommands to encrypt files, the program generates random filenames for the target files using a random name generator.
+
+To decrypt the anonymized files, you must also use the -a option. If you don't, the decrypted files will be corrupted.
+
+This happens because the original file names and paths are preserved by appending them to the content of the source files before encryption. During decryption, the program decrypts the content as usual, but then retrieves the original file names from the file content and recreates the target files accordingly.
+
+The only caveat with this feature is you cannot specify a target directory while passing "-a" and decrypt. Because the source files contain the target path already.
 
 --------------------------------------
 

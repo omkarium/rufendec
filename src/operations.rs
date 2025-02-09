@@ -8,16 +8,18 @@ use aes_gcm::{
     },
     Aes256Gcm, //, Nonce, Key // Or `Aes128Gcm`
 };
+use base64::prelude::*;
 use byte_aes::Aes256Cryptor;
 use file_shred::{shred, ShredConfig, Verbosity};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use lazy_static::lazy_static;
+use rand::{distr::Alphanumeric, Rng};
 use rayon;
 pub use std::sync::Mutex;
 use std::{
     fmt::Write,
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process,
     sync::{Arc, RwLock},
 };
@@ -29,7 +31,10 @@ use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 
-use crate::{config::Shred, log::{log, LogLevel}};
+use crate::{
+    config::Shred,
+    log::{log, LogLevel},
+};
 
 /* What do the above imports do?
 -----------------------
@@ -62,9 +67,10 @@ lazy_static! {
 
 // A simple macro which prints only when verbose printing is specified using the -v program argument
 macro_rules! logger {
-    ($value: literal, $item: expr) => {
+    // Match a format string and one or more arguments
+    ($value:literal, $($item:expr),*) => {
         if *VERBOSE.read().unwrap() {
-            println!($value, $item);
+            println!($value, $($item),*);
         }
     };
 }
@@ -276,10 +282,9 @@ pub fn encrypt_files(
     target_dir_name: &str,
     mode: Mode,
     delete_src: bool,
-    shred_options: &Option<Shred>
+    shred_options: &Option<Shred>,
+    anon: bool,
 ) {
-
-
     cipher_init(
         &file_list,
         thread_count,
@@ -293,19 +298,42 @@ pub fn encrypt_files(
                         key
                     });
 
-                    // Call the encrypt method on the Aes256Cryptor Object
-                    let encrypted_bytes = encrypt_obj.encrypt(file_data); // vec<u8>
+                    let (true_file_path, file_data) = if anon {
+                        let (true_file_path, encoded_true_file_name, encoded_true_file_name_length) =
+                            encode_file_name_to_base64(
+                                file.clone(),
+                                &source_dir_name,
+                                target_dir_name,
+                            );
 
-                    let new_file_name = file
-                        .clone()
-                        .read()
-                        .unwrap()
-                        .as_os_str()
-                        .to_str()
-                        .expect("Found a bad file")
-                        .replace(source_dir_name, target_dir_name)
-                        .to_string()
-                        + ".enom";
+                        let file_data = [
+                            file_data.as_ref(),
+                            encoded_true_file_name.as_bytes(),
+                            &encoded_true_file_name_length.to_ne_bytes(),
+                        ]
+                        .concat();
+
+                        (Some(true_file_path), Some(file_data))
+                    } else {
+                        (None, Some(file_data))
+                    };
+
+                    // Call the encrypt method on the Aes256Cryptor Object
+                    let encrypted_bytes = encrypt_obj.encrypt(file_data.unwrap()); // vec<u8>
+
+                    let new_file_name = if anon {
+                        generate_random_file_name(true_file_path.unwrap())
+                    } else {
+                        file.clone()
+                            .read()
+                            .unwrap()
+                            .as_os_str()
+                            .to_str()
+                            .expect("Found a bad file")
+                            .replace(source_dir_name, target_dir_name)
+                            .to_string()
+                            + ".enom"
+                    };
 
                     logger!("Encrypted file :: {}", new_file_name);
 
@@ -320,11 +348,11 @@ pub fn encrypt_files(
                                     Verbosity::Quiet,
                                     false,
                                     so.random_iterations,
-                                    so.rename_times,    
+                                    so.rename_times,
                                 )) {
                                     logger!("Failed to shred the file :: {}", e);
                                 }
-                            },
+                            }
                         },
                         None => {
                             // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
@@ -333,7 +361,7 @@ pub fn encrypt_files(
                                     logger!("Failed to delete the file :: {}", e);
                                 }
                             }
-                        },
+                        }
                     };
 
                     // Increment the ProgressBar if pb_bool is true. Happens when verbose printing is not chosen
@@ -354,20 +382,42 @@ pub fn encrypt_files(
                     // Generate a random 12 byte Nonce
                     let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
 
+                    let (true_file_path, file_data) = if anon {
+                        let (true_file_path, encoded_true_file_name, encoded_true_file_name_length) =
+                            encode_file_name_to_base64(
+                                file.clone(),
+                                &source_dir_name,
+                                target_dir_name,
+                            );
+
+                        let file_data = [
+                            file_data.as_ref(),
+                            encoded_true_file_name.as_bytes(),
+                            &encoded_true_file_name_length.to_ne_bytes(),
+                        ]
+                        .concat();
+
+                        (Some(true_file_path), Some(file_data))
+                    } else {
+                        (None, Some(file_data))
+                    };
+
                     // Call the encrypt method on the Aes256Gcm object and see if was successful
-                    match cipher.encrypt(&nonce, file_data.as_ref()) {
+                    match cipher.encrypt(&nonce, file_data.unwrap().as_ref()) {
                         Ok(encrypted_bytes) => {
-                            // Success
-                            let new_file_name = file
-                                .clone()
-                                .read()
-                                .unwrap()
-                                .as_os_str()
-                                .to_str()
-                                .expect("Found a bad file")
-                                .replace(source_dir_name, target_dir_name)
-                                .to_string()
-                                + ".enom";
+                            let new_file_name = if anon {
+                                generate_random_file_name(true_file_path.unwrap())
+                            } else {
+                                file.clone()
+                                    .read()
+                                    .unwrap()
+                                    .as_os_str()
+                                    .to_str()
+                                    .expect("Found a bad file")
+                                    .replace(source_dir_name, target_dir_name)
+                                    .to_string()
+                                    + ".enom"
+                            };
 
                             logger!("Encrypted file :: {}", new_file_name);
 
@@ -387,20 +437,22 @@ pub fn encrypt_files(
                                             Verbosity::Quiet,
                                             false,
                                             so.random_iterations,
-                                            so.rename_times,    
+                                            so.rename_times,
                                         )) {
                                             logger!("Failed to shred the file :: {}", e);
                                         }
-                                    },
+                                    }
                                 },
                                 None => {
                                     // Delete the source file if delete_src is true.
                                     if delete_src {
-                                        if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                        if let Err(e) =
+                                            fs::remove_file(*file.clone().read().unwrap())
+                                        {
                                             logger!("Failed to delete the file :: {}", e);
                                         }
                                     }
-                                },
+                                }
                             };
 
                             // Increment the ProgressBar
@@ -434,7 +486,8 @@ pub fn decrypt_files(
     target_dir_name: &str,
     mode: Mode,
     delete_src: bool,
-    shred_options: &Option<Shred>
+    shred_options: &Option<Shred>,
+    anon: bool,
 ) {
     cipher_init(
         &file_list,
@@ -461,19 +514,35 @@ pub fn decrypt_files(
 
                 // File is decrypted here
                 match cipher.decrypt(nonce, file_data.as_ref()) {
-                    Ok(res) => {
-                        let new_file_name = file
-                            .clone()
-                            .read()
-                            .unwrap()
-                            .as_os_str()
-                            .to_str()
-                            .unwrap()
-                            .replace(source_dir_name, target_dir_name)
-                            .replace(".enom", "")
-                            .to_string();
+                    Ok(mut res) => {
+                        let new_file_name = if anon {
+                            let (old_file_name, decoded_true_file_name) =
+                                decode_file_name_from_base64(file.clone(), &mut res);
+                            let decoded_true_file_name =
+                                decoded_true_file_name.replace(source_dir_name, target_dir_name);
 
-                        logger!("Decrypted file :: {}", new_file_name);
+                            logger!(
+                                "Decrypted file {} as :: {}",
+                                old_file_name,
+                                decoded_true_file_name
+                            );
+                            decoded_true_file_name
+                        } else {
+                            let new_file_name = file
+                                .clone()
+                                .read()
+                                .unwrap()
+                                .as_os_str()
+                                .to_str()
+                                .unwrap()
+                                .replace(source_dir_name, target_dir_name)
+                                .replace(".enom", "")
+                                .to_string();
+
+                            logger!("Decrypted file :: {}", new_file_name);
+
+                            new_file_name
+                        };
 
                         let _ = fs::write(new_file_name, res);
 
@@ -487,11 +556,11 @@ pub fn decrypt_files(
                                         Verbosity::Quiet,
                                         false,
                                         so.random_iterations,
-                                        so.rename_times,    
+                                        so.rename_times,
                                     )) {
                                         logger!("Failed to shred the file :: {}", e);
                                     }
-                                },
+                                }
                             },
                             None => {
                                 // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
@@ -500,7 +569,7 @@ pub fn decrypt_files(
                                         logger!("Failed to delete the file :: {}", e);
                                     }
                                 }
-                            },
+                            }
                         };
 
                         if pb.bool {
@@ -525,19 +594,33 @@ pub fn decrypt_files(
 
                 let decrypted_result = decrypt_obj.decrypt(file_data);
 
-                if let Ok(decrypted_bytes) = decrypted_result {
-                    let new_file_name = file
-                        .clone()
-                        .read()
-                        .unwrap()
-                        .as_os_str()
-                        .to_str()
-                        .unwrap()
-                        .replace(source_dir_name, target_dir_name)
-                        .replace(".enom", "")
-                        .to_string();
+                if let Ok(mut decrypted_bytes) = decrypted_result {
+                    let new_file_name = if anon {
+                        let (old_file_name, decoded_true_file_name) =
+                            decode_file_name_from_base64(file.clone(), &mut decrypted_bytes);
 
-                    logger!("Decrypted file :: {}", new_file_name);
+                        logger!(
+                            "Decrypted file {} as :: {}",
+                            old_file_name,
+                            decoded_true_file_name
+                        );
+                        decoded_true_file_name
+                    } else {
+                        let new_file_name = file
+                            .clone()
+                            .read()
+                            .unwrap()
+                            .as_os_str()
+                            .to_str()
+                            .unwrap()
+                            .replace(source_dir_name, target_dir_name)
+                            .replace(".enom", "")
+                            .to_string();
+
+                        logger!("Decrypted file :: {}", new_file_name);
+
+                        new_file_name
+                    };
 
                     let _ = fs::write(new_file_name, decrypted_bytes);
 
@@ -549,11 +632,11 @@ pub fn decrypt_files(
                                     Verbosity::Quiet,
                                     false,
                                     so.random_iterations,
-                                    so.rename_times,    
+                                    so.rename_times,
                                 )) {
                                     logger!("Failed to shred the file :: {}", e);
                                 }
-                            },
+                            }
                         },
                         None => {
                             // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
@@ -562,7 +645,7 @@ pub fn decrypt_files(
                                     logger!("Failed to delete the file :: {}", e);
                                 }
                             }
-                        },
+                        }
                     };
 
                     if pb.bool {
@@ -576,4 +659,87 @@ pub fn decrypt_files(
             };
         },
     );
+}
+
+fn encode_file_name_to_base64(
+    file: Arc<RwLock<&PathBuf>>,
+    source_dir_name: &str,
+    target_dir_name: &str,
+) -> (String, String, usize) {
+    let true_file_name = file
+        .clone()
+        .read()
+        .unwrap()
+        .as_os_str()
+        .to_str()
+        .expect("Found a bad file");
+
+    let true_file_path = file
+        .clone()
+        .read()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .as_os_str()
+        .to_str()
+        .expect("Found a bad file")
+        .replace(source_dir_name, target_dir_name)
+        .to_string();
+
+    let encoded_true_file_name = BASE64_STANDARD.encode(true_file_name);
+    let encoded_true_file_name_length = encoded_true_file_name.len();
+
+    (
+        true_file_path,
+        encoded_true_file_name,
+        encoded_true_file_name_length,
+    )
+}
+
+fn decode_file_name_from_base64(
+    file: Arc<RwLock<&PathBuf>>,
+    res: &mut Vec<u8>,
+) -> (String, String) {
+    let old_file_name = file
+        .clone()
+        .read()
+        .unwrap()
+        .file_name()
+        .expect("Failed to fetch file name of the source file")
+        .to_str()
+        .expect("Failed to fetch file name of the source file");
+
+    let base64_length_splitoff = res.len().saturating_sub(8);
+    let base64_length = res.split_off(base64_length_splitoff);
+    let base64_length = usize::from_ne_bytes(base64_length.try_into().unwrap());
+
+    let base64_splitoff = res.len().saturating_sub(base64_length);
+    let base64 = res.split_off(base64_splitoff);
+
+    let decoded_true_file_name = BASE64_STANDARD
+        .decode(base64)
+        .expect("Failed to decode base64 file path for source files");
+    let decoded_true_file_name = String::from_utf8_lossy(&decoded_true_file_name);
+
+    (
+        old_file_name.to_string(),
+        decoded_true_file_name.to_string(),
+    )
+}
+
+fn generate_random_file_name(true_file_path: String) -> String {
+    let random_suffix: String = rand::rng()
+        .sample_iter(&Alphanumeric)
+        .take(20)
+        .map(char::from)
+        .collect::<String>()
+        + ".enom";
+
+    let new_random_file_name = Path::new(&true_file_path).join(random_suffix);
+
+    let new_random_file_name = new_random_file_name
+        .to_str()
+        .expect("Found a bad file path to rename");
+
+    new_random_file_name.to_string()
 }
