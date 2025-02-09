@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Venkatesh Omkaram
 
 use std::{env, path::PathBuf};
-use crate::{config::Command, operations::{DIR_LIST, FILES_SIZE_BYTES, FILE_LIST}};
+use crate::{config::Command, log, log::LogLevel, operations::{DIR_LIST, FILES_SIZE_BYTES, FILE_LIST}};
 use colored::Colorize;
 use human_bytes::human_bytes;
 
@@ -27,7 +27,19 @@ where F: Fn() {
 
 pub fn display_operational_info(command: &Command) {
     let binding: String;
-    let command_deconstruct = match command {
+    let command_deconstruct: (
+        &str, 
+        &String, 
+        &String, 
+        bool, 
+        String, 
+        usize, 
+        &crate::operations::Operation, 
+        crate::operations::Mode, 
+        &Option<crate::config::Shred>, 
+        bool, 
+        bool
+    ) = match command {
         Command::Dir(options) => (
             "directory", 
             &options.source_dir, 
@@ -41,6 +53,8 @@ pub fn display_operational_info(command: &Command) {
             &options.operation,
             options.mode,
             &options.shred,
+            options.anon,
+            options.verbose
         ),
         Command::File(options) => (
             "file", 
@@ -78,9 +92,21 @@ pub fn display_operational_info(command: &Command) {
             1,
             &options.operation,
             options.mode,
-            &options.shred
+            &options.shred,
+            options.anon,
+            options.verbose
         )
     };
+
+    if command_deconstruct.9 && (command_deconstruct.2 != "Not Specified") {
+        match command_deconstruct.6 {
+            crate::operations::Operation::Encrypt => {},
+            crate::operations::Operation::Decrypt => {
+                log(LogLevel::ERROR, "[TARGET_DIR] cannot be used with --operation decrypt and --anon\n");
+                std::process::exit(1);
+            },
+        }
+    }
 
     let padding = 12 - command_deconstruct.0.len(); // Calculate how many spaces to add
 
@@ -99,6 +125,8 @@ pub fn display_operational_info(command: &Command) {
     };
 
     println!("Shred or Delete the source file(s)?               : {}", file_fate.bright_green().bold().blink());
+    println!("Anonymize the source file(s)?                     : {}", command_deconstruct.9);
+    println!("Verbose mode enabled?                             : {}", command_deconstruct.10.to_string().bright_white().blink());
 
     if let Command::Dir(_) = command {
     println!("Total target sub-directories (to be created)      : {}", DIR_LIST.lock().unwrap().to_vec().capacity());

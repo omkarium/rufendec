@@ -117,7 +117,8 @@ fn main() {
                             target_dir,
                             options.mode,
                             options.delete_src,
-                            &options.shred
+                            &options.shred,
+                            options.anon
                         );
                     }
                     Operation::Decrypt => {
@@ -134,7 +135,8 @@ fn main() {
                             target_dir,
                             options.mode,
                             options.delete_src,
-                            &options.shred
+                            &options.shred,
+                            options.anon
                         );
                     }
                 }
@@ -222,6 +224,14 @@ fn main() {
                             None => &source_dir,
                         };
 
+                        DIR_LIST.lock().unwrap().push(target_dir.into());
+
+                        create_dirs(
+                            DIR_LIST.lock().unwrap().to_vec(),
+                            source_dir,
+                            target_dir,
+                        );
+
                         match options.operation {
                             Operation::Encrypt => {
                                 encrypt_files(
@@ -231,7 +241,8 @@ fn main() {
                                     target_dir,
                                     options.mode,
                                     options.delete_src,
-                                    &options.shred
+                                    &options.shred,
+                                    options.anon
                                 );
                             }
                             Operation::Decrypt => {
@@ -242,7 +253,8 @@ fn main() {
                                     target_dir,
                                     options.mode,
                                     options.delete_src,
-                                    &options.shred
+                                    &options.shred,
+                                    options.anon
                                 );
                             }
                         }
@@ -282,3 +294,4 @@ fn main() {
         }
     };
 }
+
