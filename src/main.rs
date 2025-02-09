@@ -102,6 +102,7 @@ fn main() {
                 // Capture the start time of the execution
                 let start_time = Instant::now();
                 match options.operation {
+
                     Operation::Encrypt => {
                         // Create the target directory and sub-directories first. Encrypt the files and place them in the target
                         create_dirs(
@@ -122,12 +123,15 @@ fn main() {
                         );
                     }
                     Operation::Decrypt => {
-                        // Create the target directory and sub-directories first. Decrypt the files and place them in the target
-                        create_dirs(
-                            DIR_LIST.lock().unwrap().to_vec(),
-                            options.source_dir.as_str(),
-                            target_dir,
-                        );
+                        if !options.anon {
+                            // Create the target directory and sub-directories first. Decrypt the files and place them in the target
+                            create_dirs(
+                                DIR_LIST.lock().unwrap().to_vec(),
+                                options.source_dir.as_str(),
+                                target_dir,
+                            );
+                        }
+                        
                         decrypt_files(
                             FILE_LIST.lock().unwrap().to_vec(),
                             options.threads,
@@ -226,14 +230,14 @@ fn main() {
 
                         DIR_LIST.lock().unwrap().push(target_dir.into());
 
-                        create_dirs(
-                            DIR_LIST.lock().unwrap().to_vec(),
-                            source_dir,
-                            target_dir,
-                        );
-
                         match options.operation {
                             Operation::Encrypt => {
+                                create_dirs(
+                                    DIR_LIST.lock().unwrap().to_vec(),
+                                    source_dir,
+                                    target_dir,
+                                ); 
+
                                 encrypt_files(
                                     source_file_path_vec,
                                     1,
@@ -246,6 +250,14 @@ fn main() {
                                 );
                             }
                             Operation::Decrypt => {
+                                if !options.anon {
+                                    create_dirs(
+                                        DIR_LIST.lock().unwrap().to_vec(),
+                                        source_dir,
+                                        target_dir,
+                                    ); 
+                                }
+
                                 decrypt_files(
                                     source_file_path_vec,
                                     1,
