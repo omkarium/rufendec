@@ -252,9 +252,8 @@ Rufendec includes an Anonymize Filename feature. When you use the -a option with
 
 To decrypt the anonymized files, you must also use the -a option. If you don't, the decrypted files will be corrupted.
 
-This happens because the original file names and paths are preserved by appending them to the content of the source files before encryption. During decryption, the program decrypts the content as usual, but then retrieves the original file names from the file content and recreates the target files accordingly.
+This happens because the original file names and paths are preserved by appending them to the content of the source files before encryption. During decryption, the program decrypts the content as usual, but then retrieves the original file names from the file content, replaces the original file path with the target file path, and recreates the target files accordingly.
 
-The only caveat with this feature is you cannot specify a target directory while passing "-a" and decrypt. Because the source files contain the target path already.
 
 --------------------------------------
 

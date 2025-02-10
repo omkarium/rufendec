@@ -708,7 +708,9 @@ fn encode_file_name_to_base64(
         .unwrap()
         .as_os_str()
         .to_str()
-        .expect("Found a bad file");
+        .expect("Found a bad file")
+        .replace(source_dir_name, target_dir_name)
+        .to_string();
 
     let true_file_path = file
         .clone()
@@ -745,7 +747,8 @@ fn decode_file_name_from_base64(
         .to_str()
         .expect("Failed to fetch file name of the source file");
 
-    let base64_length_splitoff = res.len().saturating_sub(8);
+    let system_usize = std::mem::size_of::<usize>();
+    let base64_length_splitoff = res.len().saturating_sub(system_usize);
     let base64_length = res.split_off(base64_length_splitoff);
     let base64_length = usize::from_ne_bytes(base64_length.try_into().unwrap());
 

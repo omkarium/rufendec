@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Venkatesh Omkaram
 
 use std::{env, path::PathBuf};
-use crate::{config::Command, log::LogLevel, log, operations::{HashMode, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST}};
+use crate::{config::Command, operations::{HashMode, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST}};
 use colored::Colorize;
 use human_bytes::human_bytes;
 
@@ -106,16 +106,6 @@ pub fn display_operational_info(command: &Command) {
             options.dry_run,
         )
     };
-
-    if command_deconstruct.9 && (command_deconstruct.2 != "Not Specified") {
-        match command_deconstruct.6 {
-            crate::operations::Operation::Encrypt => {},
-            crate::operations::Operation::Decrypt => {
-                log(LogLevel::ERROR, "[TARGET_DIR] cannot be used with --operation decrypt and --anon\n");
-                std::process::exit(1);
-            },
-        }
-    }
 
     let padding = 12 - command_deconstruct.0.len(); // Calculate how many spaces to add
 
