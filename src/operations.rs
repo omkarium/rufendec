@@ -87,6 +87,12 @@ pub enum Mode {
     GCM,
 }
 
+#[derive(clap::ValueEnum, Clone, Debug, Copy)]
+pub enum HashMode {
+    Argon2,
+    PBKDF2,
+}
+
 impl Operation {
     pub fn to_str(&self) -> &str {
         match self {
@@ -284,6 +290,8 @@ pub fn encrypt_files(
     delete_src: bool,
     shred_options: &Option<Shred>,
     anon: bool,
+    dry_run: bool
+
 ) {
     cipher_init(
         &file_list,
@@ -337,32 +345,34 @@ pub fn encrypt_files(
 
                     logger!("Encrypted file :: {}", new_file_name);
 
-                    // Write the encrypted bytes to new_file_name
-                    let _ = fs::write(new_file_name, encrypted_bytes);
+                    if !dry_run {
+                        // Write the encrypted bytes to new_file_name
+                        let _ = fs::write(new_file_name, encrypted_bytes);
 
-                    match &shred_options {
-                        Some(o) => match o {
-                            Shred::Shred(so) => {
-                                if let Err(e) = shred(&ShredConfig::non_interactive(
-                                    vec![&*file.clone().read().unwrap()],
-                                    Verbosity::Quiet,
-                                    false,
-                                    so.random_iterations,
-                                    so.rename_times,
-                                )) {
-                                    logger!("Failed to shred the file :: {}", e);
+                        match &shred_options {
+                            Some(o) => match o {
+                                Shred::Shred(so) => {
+                                    if let Err(e) = shred(&ShredConfig::non_interactive(
+                                        vec![&*file.clone().read().unwrap()],
+                                        Verbosity::Quiet,
+                                        false,
+                                        so.random_iterations,
+                                        so.rename_times,
+                                    )) {
+                                        logger!("Failed to shred the file :: {}", e);
+                                    }
+                                }
+                            },
+                            None => {
+                                // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                                if delete_src {
+                                    if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                        logger!("Failed to delete the file :: {}", e);
+                                    }
                                 }
                             }
-                        },
-                        None => {
-                            // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
-                            if delete_src {
-                                if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
-                                    logger!("Failed to delete the file :: {}", e);
-                                }
-                            }
-                        }
-                    };
+                        };
+                    }
 
                     // Increment the ProgressBar if pb_bool is true. Happens when verbose printing is not chosen
                     if pb.bool {
@@ -421,40 +431,44 @@ pub fn encrypt_files(
 
                             logger!("Encrypted file :: {}", new_file_name);
 
-                            // Concat the encrypted_bytes and Nonce and Write it to new_file_name
-                            let _ = fs::write(
-                                new_file_name,
-                                [encrypted_bytes, nonce.to_vec()].concat(),
-                            );
-
+                            if !dry_run {
+                                // Concat the encrypted_bytes and Nonce and Write it to new_file_name
+                                let _ = fs::write(
+                                    new_file_name,
+                                    [encrypted_bytes, nonce.to_vec()].concat(),
+                                );
+                            }
+                            
                             *SUCCESS_COUNT.lock().unwrap() += 1;
 
-                            match &shred_options {
-                                Some(o) => match o {
-                                    Shred::Shred(so) => {
-                                        if let Err(e) = shred(&ShredConfig::non_interactive(
-                                            vec![&*file.clone().read().unwrap()],
-                                            Verbosity::Quiet,
-                                            false,
-                                            so.random_iterations,
-                                            so.rename_times,
-                                        )) {
-                                            logger!("Failed to shred the file :: {}", e);
+                            if !dry_run {
+                                match &shred_options {
+                                    Some(o) => match o {
+                                        Shred::Shred(so) => {
+                                            if let Err(e) = shred(&ShredConfig::non_interactive(
+                                                vec![&*file.clone().read().unwrap()],
+                                                Verbosity::Quiet,
+                                                false,
+                                                so.random_iterations,
+                                                so.rename_times,
+                                            )) {
+                                                logger!("Failed to shred the file :: {}", e);
+                                            }
+                                        }
+                                    },
+                                    None => {
+                                        // Delete the source file if delete_src is true.
+                                        if delete_src {
+                                            if let Err(e) =
+                                                fs::remove_file(*file.clone().read().unwrap())
+                                            {
+                                                logger!("Failed to delete the file :: {}", e);
+                                            }
                                         }
                                     }
-                                },
-                                None => {
-                                    // Delete the source file if delete_src is true.
-                                    if delete_src {
-                                        if let Err(e) =
-                                            fs::remove_file(*file.clone().read().unwrap())
-                                        {
-                                            logger!("Failed to delete the file :: {}", e);
-                                        }
-                                    }
-                                }
-                            };
-
+                                };
+                            }
+                            
                             // Increment the ProgressBar
                             if pb.bool {
                                 pb.inner
@@ -488,6 +502,7 @@ pub fn decrypt_files(
     delete_src: bool,
     shred_options: &Option<Shred>,
     anon: bool,
+    dry_run: bool
 ) {
     cipher_init(
         &file_list,
@@ -524,7 +539,10 @@ pub fn decrypt_files(
 
                             let decoded_file_name_path = PathBuf::from(&decoded_true_file_name);
 
-                            let _ = std::fs::create_dir_all(decoded_file_name_path.parent().unwrap());
+                            if !dry_run {
+                                let _ = std::fs::create_dir_all(decoded_file_name_path.parent().unwrap());
+
+                            }
 
                             logger!(
                                 "Decrypted file {} as :: {}",
@@ -549,34 +567,38 @@ pub fn decrypt_files(
                             new_file_name
                         };
 
-                        let _ = fs::write(new_file_name, res);
+                        if !dry_run {
+                            let _ = fs::write(new_file_name, res);
+                        }
 
                         *SUCCESS_COUNT.lock().unwrap() += 1;
 
-                        match &shred_options {
-                            Some(o) => match o {
-                                Shred::Shred(so) => {
-                                    if let Err(e) = shred(&ShredConfig::non_interactive(
-                                        vec![&*file.clone().read().unwrap()],
-                                        Verbosity::Quiet,
-                                        false,
-                                        so.random_iterations,
-                                        so.rename_times,
-                                    )) {
-                                        logger!("Failed to shred the file :: {}", e);
+                        if !dry_run {
+                            match &shred_options {
+                                Some(o) => match o {
+                                    Shred::Shred(so) => {
+                                        if let Err(e) = shred(&ShredConfig::non_interactive(
+                                            vec![&*file.clone().read().unwrap()],
+                                            Verbosity::Quiet,
+                                            false,
+                                            so.random_iterations,
+                                            so.rename_times,
+                                        )) {
+                                            logger!("Failed to shred the file :: {}", e);
+                                        }
+                                    }
+                                },
+                                None => {
+                                    // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                                    if delete_src {
+                                        if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                            logger!("Failed to delete the file :: {}", e);
+                                        }
                                     }
                                 }
-                            },
-                            None => {
-                                // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
-                                if delete_src {
-                                    if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
-                                        logger!("Failed to delete the file :: {}", e);
-                                    }
-                                }
-                            }
-                        };
-
+                            };
+                        }
+                        
                         if pb.bool {
                             pb.inner
                                 .lock()
@@ -609,6 +631,11 @@ pub fn decrypt_files(
                             old_file_name,
                             decoded_true_file_name
                         );
+
+                        if !dry_run {
+                            let _ = std::fs::create_dir_all(Path::new(&decoded_true_file_name).parent().unwrap());
+
+                        }
                         decoded_true_file_name
                     } else {
                         let new_file_name = file
@@ -627,31 +654,35 @@ pub fn decrypt_files(
                         new_file_name
                     };
 
-                    let _ = fs::write(new_file_name, decrypted_bytes);
+                    if !dry_run {
+                        let _ = fs::write(new_file_name, decrypted_bytes);
 
-                    match &shred_options {
-                        Some(o) => match o {
-                            Shred::Shred(so) => {
-                                if let Err(e) = shred(&ShredConfig::non_interactive(
-                                    vec![&*file.clone().read().unwrap()],
-                                    Verbosity::Quiet,
-                                    false,
-                                    so.random_iterations,
-                                    so.rename_times,
-                                )) {
-                                    logger!("Failed to shred the file :: {}", e);
+                        match &shred_options {
+                            Some(o) => match o {
+                                Shred::Shred(so) => {
+                                    if let Err(e) = shred(&ShredConfig::non_interactive(
+                                        vec![&*file.clone().read().unwrap()],
+                                        Verbosity::Quiet,
+                                        false,
+                                        so.random_iterations,
+                                        so.rename_times,
+                                    )) {
+                                        logger!("Failed to shred the file :: {}", e);
+                                    }
+                                }
+                            },
+                            None => {
+                                // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                                if delete_src {
+                                    if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                        logger!("Failed to delete the file :: {}", e);
+                                    }
                                 }
                             }
-                        },
-                        None => {
-                            // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
-                            if delete_src {
-                                if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
-                                    logger!("Failed to delete the file :: {}", e);
-                                }
-                            }
-                        }
-                    };
+                        };
+                    }
+
+                    
 
                     if pb.bool {
                         pb.inner

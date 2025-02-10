@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Venkatesh Omkaram
 
-use crate::operations::{Mode, Operation};
+use crate::operations::{HashMode, Mode, Operation};
 use clap::Parser;
 
 // Using Clap library to provide the user with CLI argument parser and help section.
@@ -30,13 +30,19 @@ pub struct DirOptions {
     /// Threads to speed up the execution
     #[clap(short, long, default_value_t = 8)]
     pub threads: usize,
-    /// Iterations for PBKDF2
-    #[clap(short, long, default_value_t = 60_000)]
+    /// Generate the secure key with the specified hashing function algorithm
+    #[clap(short = 'x', long, value_enum, default_value_t = HashMode::Argon2)]
+    pub hash_with: HashMode,
+    /// Iterations for the choosen hashing function
+    #[clap(short, long, default_value_t = 10)]
     pub iterations: u32,
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
     pub verbose: bool,
-    /// Anonymize source file names
+    /// Skip all file creation and deletion
+    #[clap(short = 'r', long, default_value_t = false)]
+    pub dry_run: bool,
+    /// Anonymize the source file names
     #[clap(short, long, default_value_t = false)]
     pub anon: bool,
     #[command(subcommand)]
@@ -74,8 +80,11 @@ pub struct FileOptions {
     /// Delete the source file (Ignored if `shred` command is used)
     #[clap(short, long, default_value_t = false)]
     pub delete_src: bool,
-    /// Iterations for PBKDF2
-    #[clap(short, long, default_value_t = 60_000)]
+    /// Generate the secure key with the specified hashing function algorithm
+    #[clap(short = 'x', long, value_enum, default_value_t = HashMode::Argon2)]
+    pub hash_with: HashMode,
+    /// Iterations for the choosen hashing function
+    #[clap(short, long, default_value_t = 10)]
     pub iterations: u32,
     /// Suppress all CLI output
     #[clap(short = 'z', long, default_value_t = false)]
@@ -83,7 +92,10 @@ pub struct FileOptions {
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
     pub verbose: bool,
-    /// Anonymize source file name
+    /// Skip all file creation and deletion
+    #[clap(short = 'r', long, default_value_t = false)]
+    pub dry_run: bool,
+    /// Anonymize the source file name
     #[clap(short, long, default_value_t = false)]
     pub anon: bool,
     #[command(subcommand)]

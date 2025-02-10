@@ -104,12 +104,15 @@ fn main() {
                 match options.operation {
 
                     Operation::Encrypt => {
-                        // Create the target directory and sub-directories first. Encrypt the files and place them in the target
-                        create_dirs(
-                            DIR_LIST.lock().unwrap().to_vec(),
-                            options.source_dir.as_str(),
-                            target_dir,
-                        );
+                        
+                        if !options.dry_run {
+                            // Create the target directory and sub-directories first. Encrypt the files and place them in the target
+                            create_dirs(
+                                DIR_LIST.lock().unwrap().to_vec(),
+                                options.source_dir.as_str(),
+                                target_dir,
+                            );
+                        }
 
                         encrypt_files(
                             FILE_LIST.lock().unwrap().to_vec(),
@@ -119,11 +122,12 @@ fn main() {
                             options.mode,
                             options.delete_src,
                             &options.shred,
-                            options.anon
+                            options.anon,
+                            options.dry_run
                         );
                     }
                     Operation::Decrypt => {
-                        if !options.anon {
+                        if !options.anon && !options.dry_run {
                             // Create the target directory and sub-directories first. Decrypt the files and place them in the target
                             create_dirs(
                                 DIR_LIST.lock().unwrap().to_vec(),
@@ -140,7 +144,8 @@ fn main() {
                             options.mode,
                             options.delete_src,
                             &options.shred,
-                            options.anon
+                            options.anon,
+                            options.dry_run
                         );
                     }
                 }
@@ -232,12 +237,14 @@ fn main() {
 
                         match options.operation {
                             Operation::Encrypt => {
-                                create_dirs(
-                                    DIR_LIST.lock().unwrap().to_vec(),
-                                    source_dir,
-                                    target_dir,
-                                ); 
-
+                                if !options.dry_run {
+                                    create_dirs(
+                                        DIR_LIST.lock().unwrap().to_vec(),
+                                        source_dir,
+                                        target_dir,
+                                    ); 
+                                }
+                                
                                 encrypt_files(
                                     source_file_path_vec,
                                     1,
@@ -246,11 +253,12 @@ fn main() {
                                     options.mode,
                                     options.delete_src,
                                     &options.shred,
-                                    options.anon
+                                    options.anon,
+                                    options.dry_run
                                 );
                             }
                             Operation::Decrypt => {
-                                if !options.anon {
+                                if !options.anon && !options.dry_run {
                                     create_dirs(
                                         DIR_LIST.lock().unwrap().to_vec(),
                                         source_dir,
@@ -266,7 +274,8 @@ fn main() {
                                     options.mode,
                                     options.delete_src,
                                     &options.shred,
-                                    options.anon
+                                    options.anon,
+                                    options.dry_run
                                 );
                             }
                         }

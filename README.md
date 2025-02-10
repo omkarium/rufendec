@@ -21,7 +21,7 @@ Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-2
 - Suppress all terminal I/O while working on a single file.
 - The program is multi-threaded, so the user can manually choose the number of threads.
 - The password file with ".omk" extension can be maintained in /etc, /home, /root or even the current directory (".") if you are a linux user. For windows, the file can be placed either in the current directory or "C:/WINDOWS/SYSTEM32/config"
-- PBKDF2-HMAC-SHA256 is used for the key derivation. The default iterations the program use is 60000
+- Argon2ID and PBKDF2-HMAC-SHA256 can be used for the key derivation. Argon2 is used by default and the default iterations is 10
 - Encrypted files can be observed with a ".enom" extension, so you can distinguish between encrypted and normal files.
 - Program refuse to encrypt already encrypted source files (with ".enom extension") as a safe guard mechanism by preventing double encryption (But is won't work when using file-level encryption).
 - Prevents accidentally encrypting directories such as /, /etc, /bin, /sbin etc. We have totally 23 illegal locations defined in the program.
@@ -30,6 +30,7 @@ Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-2
 - Shred the source files instead of delete.
 - Verbose output using "-v" option.
 - Anonymize source file names using "-a" option.
+- Dry run feature using "-r" option ("-d" will be automatically ignored while using this).
 
 ## How to Use
 ``Method 1``: This is a rust binary crate, so treat it as an executable. If you already know what Cargo is, how to install and use it, then go ahead and install by running the command `cargo install rufendec`. However, if you do not wish to install this program on your system permanently, then CD (change directory) into the cloned git repo and run `cargo run -- --help`.
@@ -83,8 +84,10 @@ Options:
   -m, --mode <MODE>                    Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
   -d, --delete-src                     Pass this option to delete the source files in the Source Directory
   -t, --threads <THREADS>              Threads to speed up the execution [default: 8]
-  -i, --iterations <ITERATIONS>        Iterations for PBKDF2 [default: 60000]
+  -x, --hash-with <HASH_WITH>          Generate the secure key with the specified hashing function algorithm [default: argon2] [possible values: argon2, pbkdf2]
+  -i, --iterations <ITERATIONS>        Iterations for the choosen hashing function [default: 10]
   -v, --verbose                        Print verbose output
+  -r, --dry-run                        Skip all file creation and deletion
   -a, --anon                           Anonymize source file names
   -h, --help                           Print help
 ```
@@ -112,9 +115,11 @@ Options:
   -o, --operation <OPERATION>          Specify the Operation you want to perform on the Source file [possible values: encrypt, decrypt]
   -m, --mode <MODE>                    Provide the mode of Encryption here [default: gcm] [possible values: ecb, gcm]
   -d, --delete-src                     Pass this option to delete the source file
-  -i, --iterations <ITERATIONS>        Iterations for PBKDF2 [default: 60000]
+  -x, --hash-with <HASH_WITH>          Generate the secure key with the specified hashing function algorithm [default: argon2] [possible values: argon2, pbkdf2]
+  -i, --iterations <ITERATIONS>        Iterations for the choosen hashing function [default: 10]
   -z, --suppress-terminal              Suppress all CLI output
   -v, --verbose                        Print verbose output
+  -r, --dry-run                        Skip all file creation and deletion
   -a, --anon                           Anonymize source file name
   -h, --help                           Print help
 ```
@@ -137,7 +142,7 @@ rufendec dir ./source-dir ./target-dir --password-file ./passwordfile --operatio
 
 OR
 
-rufendec dir ./source-dir ./target-dir -f ./passwordfile -o encrypt -m gcm -t 12 -i 100000
+rufendec dir ./source-dir ./target-dir -f ./passwordfile -o encrypt -m gcm -t 12 -i 100000 -m pbkdf2
 
 OR
 
@@ -206,7 +211,7 @@ To decrypt a source file and place it in the same source directory, but delete t
 rufendec file -o decrypt ../source-file -p [YOUR_PASSWORD] -s [YOUR_SALT] -dkz
 ```
 
-*Note: In the password file, you have to specify the password in th 1st line and the salt in the second line. The password and salt can be of any arbitrary length because the key generation in the program is happening via PBKDF2*
+*Note: In the password file, you have to specify the password in th 1st line and the salt in the second line. The password and salt can be of any arbitrary length because the key generation in the program is happening via Argon2 or PBKDF2*
 
 Example context inside a ./passwordfile
 ```

@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Venkatesh Omkaram
 
 use std::{env, path::PathBuf};
-use crate::{config::Command, log, log::LogLevel, operations::{DIR_LIST, FILES_SIZE_BYTES, FILE_LIST}};
+use crate::{config::Command, log::LogLevel, log, operations::{HashMode, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST}};
 use colored::Colorize;
 use human_bytes::human_bytes;
 
@@ -38,6 +38,9 @@ pub fn display_operational_info(command: &Command) {
         crate::operations::Mode, 
         &Option<crate::config::Shred>, 
         bool, 
+        bool,
+        HashMode,
+        u32,
         bool
     ) = match command {
         Command::Dir(options) => (
@@ -54,7 +57,10 @@ pub fn display_operational_info(command: &Command) {
             options.mode,
             &options.shred,
             options.anon,
-            options.verbose
+            options.verbose,
+            options.hash_with,
+            options.iterations,
+            options.dry_run,
         ),
         Command::File(options) => (
             "file", 
@@ -94,7 +100,10 @@ pub fn display_operational_info(command: &Command) {
             options.mode,
             &options.shred,
             options.anon,
-            options.verbose
+            options.verbose,
+            options.hash_with,
+            options.iterations,
+            options.dry_run,
         )
     };
 
@@ -124,6 +133,7 @@ pub fn display_operational_info(command: &Command) {
         "Neither (files won't be removed)".to_string()
     };
 
+    println!("Dry Run enabled?                                  : {}", command_deconstruct.13.to_string().bright_white().blink());
     println!("Shred or Delete the source file(s)?               : {}", file_fate.bright_green().bold().blink());
     println!("Anonymize the source file(s)?                     : {}", command_deconstruct.9);
     println!("Verbose mode enabled?                             : {}", command_deconstruct.10.to_string().bright_white().blink());
@@ -135,6 +145,8 @@ pub fn display_operational_info(command: &Command) {
 
     println!("Total size of source {} {:>width$}                : {}", command_deconstruct.0, " ".repeat(padding), command_deconstruct.4, width = padding);
     println!("Total threads about to be used                    : {}", command_deconstruct.5);
+    println!("Hashing function employed                         : {:?}", command_deconstruct.11);
+    println!("Iterations for the hashing function               : {}", command_deconstruct.12);
     println!("Operation chosen                                  : {}", command_deconstruct.6.to_str().bright_blue().bold().blink());
     println!("Mode chosen                                       : AES-256-{:?}", command_deconstruct.7);
     println!("\nThe encrypted files MUST be of '.enom' extension");
