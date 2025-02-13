@@ -6,7 +6,7 @@
 ![Category][category-image]
 
 
-Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-256 encryption and decryption, preserving file names and directory structure. With support for ECB/GCM modes, it simplifies securing and restoring files with ease, all powered by Rust.
+Rufendec (Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-256 encryption and decryption, preserving file names and directory structure. With support for ECB/GCM modes, it simplifies securing and restoring files with ease, all powered by Rust.
 
 ### Use Case
 - <ins>**Encrypt files while preserving directory structure**</ins>: This allows you to upload encrypted files to cloud storage for backup. It's especially useful when your backup medium doesn’t support Full Disk Encryption (FDE). Additionally, it enables you to target specific files or folders for decryption from the backup, providing greater flexibility.
@@ -23,7 +23,7 @@ Rufendec (The Rust File Encryptor-Decryptor) is a lightweight CLI tool for AES-2
 - The password file with ".omk" extension can be maintained in /etc, /home, /root or even the current directory (".") if you are a linux user. For windows, the file can be placed either in the current directory or "C:/WINDOWS/SYSTEM32/config"
 - Argon2ID and PBKDF2-HMAC-SHA256 can be used for the key derivation. Argon2 is used by default and the default iterations is 10
 - Encrypted files can be observed with a ".enom" extension, so you can distinguish between encrypted and normal files.
-- Program refuse to encrypt already encrypted source files (with ".enom extension") as a safe guard mechanism by preventing double encryption (But is won't work when using file-level encryption).
+- Program refuse to encrypt already encrypted source files (with ".enom extension") as a safe guard mechanism by preventing double encryption (But it won't work while encrypting a single file using `rufendec file` subcommand).
 - Prevents accidentally encrypting directories such as /, /etc, /bin, /sbin etc. We have totally 23 illegal locations defined in the program.
 - In-place file encryption and decryption is possible if the target directory is not specified as a Command line argument, but use in conjunction with "-d" option.
 - Source files can be deleted by passing the "-d" option.
