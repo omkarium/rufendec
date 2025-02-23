@@ -549,6 +549,7 @@ pub fn decrypt_files(
                                 old_file_name,
                                 decoded_true_file_name
                             );
+                            
                             decoded_true_file_name
                         } else {
                             let new_file_name = file
@@ -626,16 +627,22 @@ pub fn decrypt_files(
                         let (old_file_name, decoded_true_file_name) =
                             decode_file_name_from_base64(file.clone(), &mut decrypted_bytes);
 
+                        let decoded_true_file_name =
+                            decoded_true_file_name.replace(source_dir_name, target_dir_name);
+
+                        let decoded_file_name_path = PathBuf::from(&decoded_true_file_name);
+
+                        if !dry_run {
+                            let _ = std::fs::create_dir_all(decoded_file_name_path.parent().unwrap());
+
+                        }
+
                         logger!(
                             "Decrypted file {} as :: {}",
                             old_file_name,
                             decoded_true_file_name
                         );
 
-                        if !dry_run {
-                            let _ = std::fs::create_dir_all(Path::new(&decoded_true_file_name).parent().unwrap());
-
-                        }
                         decoded_true_file_name
                     } else {
                         let new_file_name = file
