@@ -39,7 +39,8 @@ jobs:
 
       - name: Install Rust
         # Or @nightly if you want
-        uses: dtolnay/rust-toolchain@stable
+        uses: rust-build/rust-build.action@v1.4.5
+        #uses: dtolnay/rust-toolchain@stable
         # Arguments to pass in
         with:
           # Make Rust compile to our target (defined in the matrix)
