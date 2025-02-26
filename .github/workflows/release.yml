@@ -40,11 +40,15 @@ jobs:
       - name: Install Rust
         # Or @nightly if you want
         uses: rust-build/rust-build.action@v1.4.5
+        env:
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         URL: ${{ github.event.release.upload_url }}
         #uses: dtolnay/rust-toolchain@stable
         # Arguments to pass in
         with:
           # Make Rust compile to our target (defined in the matrix)
           targets: ${{ matrix.target }}
+          RUSTTARGET: ${{ matrix.target }}
 
       - name: Build
         uses: actions-rs/cargo@v1
