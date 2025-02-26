@@ -1,0 +1,5 @@
+     - name: Rust Release binary
+  # You may pin to the exact commit or the version.
+  # uses: rust-build/rust-build.action@6febf1b0ed6499a46610b58ef9d810398e75f3c2
+       uses: rust-build/rust-build.action@v1.4.5
+   
