@@ -1,0 +1,45 @@
+name: Rust Release
+
+on:
+  push:
+    branches:
+      - main
+    
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cross (for cross-compilation)
+        run: cargo install cross
+
+      - name: Build for Linux
+        run: |
+          cross build --release --target x86_64-unknown-linux-gnu
+          mv target/x86_64-unknown-linux-gnu/release/rufendec rufendec-linux
+
+      - name: Build for Windows
+        run: |
+          cross build --release --target x86_64-pc-windows-gnu
+          mv target/x86_64-pc-windows-gnu/release/rufendec.exe rufendec-windows.exe
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            rufendec-linux
+            rufendec-windows.exe
+            rufendec-macos
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
