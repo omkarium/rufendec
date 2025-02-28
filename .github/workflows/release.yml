@@ -3,7 +3,7 @@ name: Deploy
 on:
   push:
     tags:
-      - "[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
   contents: write
@@ -17,15 +17,15 @@ jobs:
       matrix:
         # You can add more, for any target you'd like!
         include:
-          - build: linux-musl
+          - build: linux
             os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-gnu
 
           - build: windows
-            os: ubuntu-latest
-            target: x86_64-pc-windows-gnu
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
 
-          - build: linux-aarch
+          - build: aarch64
             os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
 
@@ -39,16 +39,11 @@ jobs:
 
       - name: Install Rust
         # Or @nightly if you want
-        uses: rust-build/rust-build.action@v1.4.5
-        env:
-         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-         URL: ${{ github.event.release.upload_url }}
-        #uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable
         # Arguments to pass in
         with:
           # Make Rust compile to our target (defined in the matrix)
           targets: ${{ matrix.target }}
-          RUSTTARGET: ${{ matrix.target }}
 
       - name: Build
         uses: actions-rs/cargo@v1
@@ -62,7 +57,6 @@ jobs:
         run: |
           # Replace with the name of your binary
           binary_name=rufendec
-
           dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
           mkdir "$dirname"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
@@ -70,7 +64,6 @@ jobs:
           else
             mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
           fi
-
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             7z a "$dirname.zip" "$dirname"
             echo "ASSET=$dirname.zip" >> $GITHUB_ENV
@@ -78,7 +71,6 @@ jobs:
             tar -czf "$dirname.tar.gz" "$dirname"
             echo "ASSET=$dirname.tar.gz" >> $GITHUB_ENV
           fi
-
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
