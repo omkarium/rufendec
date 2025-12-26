@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Main capabilities for the application",
+  "windows": ["main", "github"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "shell:allow-open"
+  ]
+}
+
+

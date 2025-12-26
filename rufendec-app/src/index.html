@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rufendec - File Encryption Tool</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="content">
+            <h1>🔐 Rufendec File Encryption</h1>
+            <div class="header-info">
+                <h3 class="author-info">by Venkatesh Omkaram @ <a href="#" id="github-link">Source Code</a></h3>
+                <h3 class="version-info">Version: v0.1.0</h3>
+            </div>
+            <div class="section">
+                <h2>Operation Type</h2>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="targetType" value="directory" checked>
+                        Directory/Folder
+                    </label>
+                    <label>
+                        <input type="radio" name="targetType" value="file">
+                        Single File
+                    </label>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Operation</h2>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="operation" value="encrypt" checked>
+                        Encrypt
+                    </label>
+                    <label>
+                        <input type="radio" name="operation" value="decrypt">
+                        Decrypt
+                    </label>
+                </div>
+            </div>
+
+            <div class="section">
+                <label for="source-path">Source Path:</label>
+                <div class="input-group">
+                    <input type="text" id="source-path" placeholder="Select source file or directory..." readonly>
+                    <button type="button" id="browse-source">Browse</button>
+                </div>
+                <!-- Operational Info Display -->
+                <div id="operational-info" class="operational-info" style="display: none;">
+                    <h3>📊 Operational Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Operating System:</span>
+                            <span class="info-value" id="info-os">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Files:</span>
+                            <span class="info-value" id="info-files">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Folders:</span>
+                            <span class="info-value" id="info-folders">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Total Size:</span>
+                            <span class="info-value" id="info-size">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <label for="target-path">Target Path (optional):</label>
+                <div class="input-group">
+                    <input type="text" id="target-path" placeholder="Leave empty to use source directory">
+                    <button type="button" id="browse-target">Browse</button>
+                </div>
+            </div>
+
+            <div class="section important-option">
+                <div class="important-checkbox-wrapper">
+                    <label class="important-checkbox-label">
+                        <input type="checkbox" id="delete-src">
+                        <span class="checkbox-text">
+                            <strong>🗑️ Delete source files after encryption/decryption</strong>
+                            <span class="checkbox-hint">Recommended if no target path is specified to avoid mixing source and encrypted files</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="section">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+
+            <div class="section">
+                <label for="salt">Salt:</label>
+                <input type="password" id="salt" placeholder="Enter salt">
+            </div>
+
+            <div class="section">
+                <h3 class="collapsible-header" id="advanced-toggle">
+                    <span>⚙️ Advanced Options</span>
+                    <span class="toggle-icon">▼</span>
+                </h3>
+                
+                <div class="collapsible-content" id="advanced-content">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="mode">Encryption Mode:</label>
+                        <select id="mode">
+                            <option value="gcm" selected>GCM (Recommended)</option>
+                            <option value="ecb">ECB</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hash-with">Key Derivation:</label>
+                        <select id="hash-with">
+                            <option value="argon2" selected>Argon2ID</option>
+                            <option value="pbkdf2">PBKDF2</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="iterations">Iterations:</label>
+                        <input type="number" id="iterations" value="10" min="1">
+                    </div>
+
+                    <div class="form-group" id="threads-group">
+                        <label for="threads">Threads:</label>
+                        <input type="number" id="threads" value="8" min="1" max="32">
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="anon">
+                        Anonymize file names
+                    </label>
+                    <label>
+                        <input type="checkbox" id="dry-run">
+                        Dry run (test without making changes)
+                    </label>
+                    <label>
+                        <input type="checkbox" id="verbose">
+                        Verbose output
+                    </label>
+                </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <button type="button" id="execute-btn" class="btn-primary">Execute</button>
+                <div id="status-msg"></div>
+                
+                <!-- Progress Bar -->
+                <div id="progress-container" style="display: none; margin-top: 20px;">
+                    <div class="progress-info">
+                        <span id="progress-text">0%</span>
+                        <span id="progress-details">0 / 0 files</span>
+                    </div>
+                    <div class="progress-bar-wrapper">
+                        <div id="progress-bar" class="progress-bar"></div>
+                    </div>
+                    <div id="progress-message" class="progress-message"></div>
+                </div>
+                
+                <!-- Verbose Log Area -->
+                <div id="verbose-container" style="display: none; margin-top: 20px;">
+                    <div class="verbose-header">
+                        <h3>Verbose Output</h3>
+                        <button type="button" id="clear-log-btn" class="btn-small">Clear</button>
+                    </div>
+                    <div id="verbose-log" class="verbose-log"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+{"main":{"identifier":"main","description":"Main capabilities for the application","local":true,"windows":["main","github"],"permissions":["core:default","dialog:default","shell:allow-open"]}}

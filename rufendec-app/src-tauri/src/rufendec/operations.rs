@@ -1,0 +1,848 @@
+// Copyright (c) 2023 Venkatesh Omkaram
+
+use aes_gcm::{
+    aead::{Aead, AeadCore, KeyInit, OsRng},
+    aes::cipher::{
+        crypto_common::generic_array::GenericArray,
+        typenum::{UInt, UTerm, B0, B1, /*U32, U16*/ U12},
+    },
+    Aes256Gcm, //, Nonce, Key // Or `Aes128Gcm`
+};
+use base64::prelude::*;
+use byte_aes::Aes256Cryptor;
+use file_shred::{shred, ShredConfig, Verbosity};
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use lazy_static::lazy_static;
+use rand::{distr::Alphanumeric, Rng};
+use rayon;
+pub use std::sync::Mutex;
+use tauri::Emitter;
+use std::{
+    fmt::Write,
+    fs,
+    path::{Path, PathBuf},
+    sync::{Arc, RwLock},
+};
+use walkdir::WalkDir;
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::os::unix::fs::MetadataExt;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::MetadataExt;
+
+use crate::rufendec::{
+    config::Shred,
+    log::{log, LogLevel},
+};
+
+/* What do the above imports do?
+-----------------------
+aes_gcm - Has the functions which helps to encrypt and decrypt the files for GCM mode
+byte_aes - Has the functions which helps to encrypt and decrypt the files for ECB mode
+lazy_static - A rust way to have Global variables
+rayon - Helps to make the cipher operations multi-threaded
+std - Has some standard core features to find Operation system, read and write files, find time, Atomic Reference Counter, process to forcefully exit the program execution
+walkdir - Helps to walk through a given folder path
+indicatif - Has some fancy ProgressBar and Spinners to print on the screen
+file_shred - A basic file shred crate
+
+Read the Cargo.toml and Attributions to see which versions and the Authors who made these crates
+*/
+
+// Specify the Global Variables. These variables are initialized using lazy_static macro and can be accessed anywhere in code
+// Mutex is required to access these variables inside Rayon threads
+lazy_static! {
+    pub static ref ECB_32BYTE_KEY: RwLock<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =
+        RwLock::new(Vec::new());
+    pub static ref GCM_32BYTE_KEY: RwLock<Vec<GenericArray<u8, UInt<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>, B0>>>> =
+        RwLock::new(Vec::new());
+    pub static ref DIR_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+    pub static ref FILE_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+    pub static ref FILES_SIZE_BYTES: Mutex<u64> = Mutex::new(0);
+    pub static ref FAILED_COUNT: Mutex<u16> = Mutex::new(0);
+    pub static ref SUCCESS_COUNT: Mutex<u16> = Mutex::new(0);
+    pub static ref VERBOSE: RwLock<bool> = RwLock::new(false);
+    pub static ref APP_HANDLE: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
+}
+
+// A simple macro which prints only when verbose printing is specified using the -v program argument
+// Also emits Tauri events if AppHandle is available
+macro_rules! logger {
+    // Match a format string and one or more arguments
+    ($value:literal, $($item:expr),*) => {
+        if *VERBOSE.read().unwrap() {
+            let message = format!($value, $($item),*);
+            println!("{}", message);
+            
+            // Try to emit Tauri event if AppHandle is available
+            if let Ok(handle_lock) = APP_HANDLE.try_lock() {
+                if let Some(app_handle) = handle_lock.as_ref() {
+                    use serde::{Serialize, Deserialize};
+                    #[derive(Serialize, Deserialize)]
+                    struct VerboseMsg {
+                        message: String,
+                        level: String,
+                    }
+                    let verbose_msg = VerboseMsg {
+                        message: message.clone(),
+                        level: "info".to_string(),
+                    };
+                    let _ = app_handle.emit("verbose-message", &verbose_msg);
+                }
+            }
+        }
+    };
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+pub enum Operation {
+    Encrypt,
+    Decrypt,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug, Copy)]
+pub enum Mode {
+    ECB,
+    GCM,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug, Copy)]
+pub enum HashMode {
+    Argon2,
+    PBKDF2,
+}
+
+#[allow(dead_code)]
+impl Operation {
+    pub fn to_str(&self) -> &str {
+        match self {
+            Operation::Encrypt => "Encrypt",
+            Operation::Decrypt => "Decrypt",
+        }
+    }
+}
+
+impl std::fmt::Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+// This function helps to Construct a ProgressBar for a given file count. But not to be used only when verbose printing is allowed.
+// ProgressBar needs to be Arc<Mutex<>> because it will be shared among threads
+fn progress_bar(file_count: u64) -> Option<Arc<Mutex<ProgressBar>>> {
+    if !(*VERBOSE.read().unwrap()) {
+        let pb = ProgressBar::new(file_count);
+
+        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos} /{percent}% files completed ({eta_precise})")
+                .unwrap()
+                .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+                .progress_chars("#>-"));
+        return Some(Arc::new(Mutex::new(pb)));
+    }
+    None
+}
+
+// Validates whether there are any Illegal source dir path is provided
+// Validates whether any encrypted files are provided when the operation the user choose is to Encrypt
+pub fn pre_validate_source(source_dir: &PathBuf, operation: &Operation) -> Result<(), String> {
+    let illegal_locations = [
+        "/", "/root", "/boot", "/usr", "/lib", "/lib64", "/lib32", "/libx32", "/mnt",
+        "/dev", "/sys", "/run", "/bin", "/sbin", "/proc", "/media", "/var", "/etc", "/srv", "/opt",
+        "C:", "c:",
+    ];
+
+    let source_str = source_dir.to_str().unwrap();
+    
+    // Check if path is exactly one of the illegal locations
+    if illegal_locations.contains(&source_str) {
+        let error_msg = format!("Hey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.\n\nHere is the list of paths your source directory path must never start with : \n{:?}", illegal_locations);
+        log(LogLevel::ERROR, error_msg.as_str());
+        return Err(error_msg);
+    }
+    
+    // Check if path starts with any illegal location followed by a path separator (or is exactly that path)
+    // This prevents /Users/... from matching /, but still catches /root/..., /usr/..., etc.
+    if illegal_locations.iter().any(|&illegal| {
+        if illegal == "/" {
+            // Special case: only reject if path is exactly "/", not paths starting with "/"
+            source_str == "/"
+        } else if illegal == "C:" || illegal == "c:" {
+            // Windows drive check: path starts with C: or c: (case insensitive)
+            source_str.len() >= 2 && source_str[..2].eq_ignore_ascii_case(illegal)
+        } else {
+            // For other paths, check if source starts with the illegal path followed by / or is exactly that path
+            source_str == illegal || source_str.starts_with(&format!("{}/", illegal))
+        }
+    }) {
+        let error_msg = format!("Hey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.\n\nHere is the list of paths your source directory path must never start with : \n{:?}", illegal_locations);
+        log(LogLevel::ERROR, error_msg.as_str());
+        return Err(error_msg);
+    }
+
+    // Validate if the Source path has any encrypted file while the operation chosen by the user is encrypt
+    if let Operation::Encrypt = operation {
+        // Don't show validation message unless verbose is enabled - errors will be shown regardless
+        for entry in WalkDir::new(source_dir)
+            .follow_links(true)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let f_name = entry.file_name().to_string_lossy();
+
+            // Check for the .enom file extension in the file names. .enom is the encrypted files extension
+            if f_name.ends_with(".enom") {
+                let file_path: PathBuf = entry.into_path().as_path().to_owned();
+
+                let error_msg = format!("Yikes! Found an encrypted file => {:?}, and there could be several.\n\nPlease ensure you are not encrypting already encrypted files. Doing double encryption won't help", file_path);
+                
+                log(LogLevel::ERROR, error_msg.as_str());
+                logger!("{}", error_msg);
+                
+                // Always emit to UI verbose log, even if verbose mode is disabled
+                if let Ok(handle_lock) = APP_HANDLE.try_lock() {
+                    if let Some(app_handle) = handle_lock.as_ref() {
+                        use serde::{Serialize, Deserialize};
+                        #[derive(Serialize, Deserialize)]
+                        struct VerboseMsg {
+                            message: String,
+                            level: String,
+                        }
+                        let verbose_msg = VerboseMsg {
+                            message: error_msg.clone(),
+                            level: "error".to_string(),
+                        };
+                        let _ = app_handle.emit("verbose-message", &verbose_msg);
+                        // Show verbose container for errors
+                        let _ = app_handle.emit("show-verbose-container", &());
+                    }
+                }
+
+                return Err(error_msg); // Return error instead of exiting
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/* Recursively walk through the path provided and list all the sub-directory names and push it to a collection
+Gathers the directory names and file names under the path
+The DIR_LIST will be used to create the target directories
+The FILE_LIST will be used know which files to Encrypt or Decrypt
+FILE_SIZE_BYTES totals each file size
+*/
+pub fn recurse_dirs(item: &PathBuf) {
+    if item.is_dir() {
+        if let Ok(paths) = fs::read_dir(item) {
+            for path in paths {
+                let metadata = path.as_ref().unwrap().metadata();
+                let entry = path.as_ref().unwrap();
+
+                if metadata.unwrap().is_dir() {
+                    let base_path = entry.path();
+                    DIR_LIST.lock().unwrap().push(base_path);
+                    recurse_dirs(&entry.path());
+                } else {
+                    FILE_LIST.lock().unwrap().push(entry.path());
+                    if cfg!(unix) {
+                        #[cfg(any(target_os = "linux", target_os = "macos"))]
+                        {
+                            *FILES_SIZE_BYTES.lock().unwrap() +=
+                                entry.path().metadata().unwrap().size();
+                        }
+                    } else if cfg!(windows) {
+                        #[cfg(target_os = "windows")]
+                        {
+                            *FILES_SIZE_BYTES.lock().unwrap() +=
+                                entry.path().metadata().unwrap().file_size();
+                        }
+                    }
+                }
+            } // end of for loop
+        }
+    }
+}
+
+// Creates the target directory and sub-directories by operating on the Paths.
+pub fn create_dirs(paths: Vec<PathBuf>, source_dir_name: &str, target_dir_name: &str) {
+    for parent in paths {
+        let destination = parent
+            .to_owned()
+            .as_mut_os_str()
+            .to_str()
+            .unwrap()
+            .replace(source_dir_name, target_dir_name);
+
+        logger!("Directory created => {:?}", destination);
+
+        let _ = fs::create_dir_all(destination);
+    }
+}
+
+struct PbGroup {
+    inner: Arc<Mutex<ProgressBar>>,
+    bool: bool,
+    increment: Arc<Mutex<u64>>,
+}
+
+// Construct a ProgressBar. ProgressBar is only available when verbose printing is not chosen. Hence it can come as None.
+// When PB is not constructed, mark the pb_bool as false. PB increment counter starting value is 1
+// This function expects a Closure logic for encrypt and decrypt operations
+fn cipher_init<F>(file_list: &Vec<PathBuf>, thread_count: usize, f: F)
+where
+    F: Fn(Vec<u8>, PbGroup, Arc<RwLock<&PathBuf>>) + std::marker::Send + Copy + std::marker::Sync,
+{
+    let (pb, pb_bool, pb_increment): (Arc<Mutex<ProgressBar>>, bool, Arc<Mutex<u64>>) =
+        match progress_bar(file_list.to_owned().capacity() as u64) {
+            Some(pb) => (pb, true, Arc::new(Mutex::new(1))),
+            None => (
+                Arc::new(Mutex::new(ProgressBar::new(0))),
+                false,
+                Arc::new(Mutex::new(1)),
+            ), // I hate this line. Unavoidable with my current knowledge.
+        };
+    // Construct a ThreadPool using Rayon
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(thread_count)
+        .build()
+        .unwrap();
+
+    // For each element in file_list create a new thread and run it inside the thread scope
+    // Rayon only allows certain number of threads to be created and executed in parallel based on the thread_count specified.
+    pool.install(|| {
+        rayon::scope(|s| {
+            for file in file_list {
+                let pb = PbGroup {
+                    inner: pb.clone(),
+                    increment: pb_increment.clone(),
+                    bool: pb_bool,
+                };
+
+                let file = Arc::new(RwLock::new(file));
+
+                // Spawn the threads here
+                s.spawn(move |_| {
+                    if let Ok(file_data) = fs::read(*file.clone().read().unwrap()) {
+                        f(file_data, pb, file); // Closure call
+                    }
+                });
+            }
+        });
+    });
+}
+
+/* Encrypts the files in the file_list in parallel based on the thread_count and Mode. Places the files the target directory
+by replacing the source_dir_name with the target_dir_name.
+Delete the source directory if the delete_src is true.
+*/
+pub fn encrypt_files(
+    file_list: Vec<PathBuf>,
+    thread_count: usize,
+    source_dir_name: &str,
+    target_dir_name: &str,
+    mode: Mode,
+    delete_src: bool,
+    shred_options: &Option<Shred>,
+    anon: bool,
+    dry_run: bool
+
+) {
+    cipher_init(
+        &file_list,
+        thread_count,
+        |file_data: Vec<u8>, pb: PbGroup, file: Arc<RwLock<&PathBuf>>| {
+            match mode {
+                Mode::ECB => {
+                    //Create Aes256Cryptor Object
+                    let encrypt_obj = Aes256Cryptor::new({
+                        let mut key = [0u8; 32];
+                        key.copy_from_slice(ECB_32BYTE_KEY.read().unwrap()[0].as_slice());
+                        key
+                    });
+
+                    let (true_file_path, file_data) = if anon {
+                        let (true_file_path, encoded_true_file_name, encoded_true_file_name_length) =
+                            encode_file_name_to_base64(
+                                file.clone(),
+                                &source_dir_name,
+                                target_dir_name,
+                            );
+
+                        let file_data = [
+                            file_data.as_ref(),
+                            encoded_true_file_name.as_bytes(),
+                            &encoded_true_file_name_length.to_ne_bytes(),
+                        ]
+                        .concat();
+
+                        (Some(true_file_path), Some(file_data))
+                    } else {
+                        (None, Some(file_data))
+                    };
+
+                    // Call the encrypt method on the Aes256Cryptor Object
+                    let encrypted_bytes = encrypt_obj.encrypt(file_data.unwrap()); // vec<u8>
+
+                    let new_file_name = if anon {
+                        generate_random_file_name(true_file_path.unwrap())
+                    } else {
+                        file.clone()
+                            .read()
+                            .unwrap()
+                            .as_os_str()
+                            .to_str()
+                            .expect("Found a bad file")
+                            .replace(source_dir_name, target_dir_name)
+                            .to_string()
+                            + ".enom"
+                    };
+
+                    logger!("Encrypted file :: {}", new_file_name);
+
+                    if !dry_run {
+                        // Write the encrypted bytes to new_file_name
+                        let _ = fs::write(new_file_name, encrypted_bytes);
+
+                        match &shred_options {
+                            Some(o) => match o {
+                                Shred::Shred(so) => {
+                                    if let Err(e) = shred(&ShredConfig::non_interactive(
+                                        vec![&*file.clone().read().unwrap()],
+                                        Verbosity::Quiet,
+                                        false,
+                                        so.random_iterations,
+                                        so.rename_times,
+                                    )) {
+                                        logger!("Failed to shred the file :: {}", e);
+                                    }
+                                }
+                            },
+                            None => {
+                                // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                                if delete_src {
+                                    if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                        logger!("Failed to delete the file :: {}", e);
+                                    }
+                                }
+                            }
+                        };
+                    }
+
+                    // Increment the ProgressBar if pb_bool is true. Happens when verbose printing is not chosen
+                    if pb.bool {
+                        pb.inner
+                            .lock()
+                            .unwrap()
+                            .set_position(*pb.increment.lock().unwrap());
+                        *pb.increment.lock().unwrap() += 1;
+                    }
+                }
+
+                Mode::GCM => {
+                    // Extract the 32 byte key from the Vec and construct a Aes256Gcm object
+                    let cipher: aes_gcm::AesGcm<aes_gcm::aes::Aes256, _, _> =
+                        Aes256Gcm::new(&GCM_32BYTE_KEY.read().unwrap().as_slice()[0]);
+
+                    // Generate a random 12 byte Nonce
+                    let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
+
+                    let (true_file_path, file_data) = if anon {
+                        let (true_file_path, encoded_true_file_name, encoded_true_file_name_length) =
+                            encode_file_name_to_base64(
+                                file.clone(),
+                                &source_dir_name,
+                                target_dir_name,
+                            );
+
+                        let file_data = [
+                            file_data.as_ref(),
+                            encoded_true_file_name.as_bytes(),
+                            &encoded_true_file_name_length.to_ne_bytes(),
+                        ]
+                        .concat();
+
+                        (Some(true_file_path), Some(file_data))
+                    } else {
+                        (None, Some(file_data))
+                    };
+
+                    // Call the encrypt method on the Aes256Gcm object and see if was successful
+                    match cipher.encrypt(&nonce, file_data.unwrap().as_ref()) {
+                        Ok(encrypted_bytes) => {
+                            let new_file_name = if anon {
+                                generate_random_file_name(true_file_path.unwrap())
+                            } else {
+                                file.clone()
+                                    .read()
+                                    .unwrap()
+                                    .as_os_str()
+                                    .to_str()
+                                    .expect("Found a bad file")
+                                    .replace(source_dir_name, target_dir_name)
+                                    .to_string()
+                                    + ".enom"
+                            };
+
+                            logger!("Encrypted file :: {}", new_file_name);
+
+                            if !dry_run {
+                                // Concat the encrypted_bytes and Nonce and Write it to new_file_name
+                                let _ = fs::write(
+                                    new_file_name,
+                                    [encrypted_bytes, nonce.to_vec()].concat(),
+                                );
+                            }
+                            
+                            *SUCCESS_COUNT.lock().unwrap() += 1;
+
+                            if !dry_run {
+                                match &shred_options {
+                                    Some(o) => match o {
+                                        Shred::Shred(so) => {
+                                            if let Err(e) = shred(&ShredConfig::non_interactive(
+                                                vec![&*file.clone().read().unwrap()],
+                                                Verbosity::Quiet,
+                                                false,
+                                                so.random_iterations,
+                                                so.rename_times,
+                                            )) {
+                                                logger!("Failed to shred the file :: {}", e);
+                                            }
+                                        }
+                                    },
+                                    None => {
+                                        // Delete the source file if delete_src is true.
+                                        if delete_src {
+                                            if let Err(e) =
+                                                fs::remove_file(*file.clone().read().unwrap())
+                                            {
+                                                logger!("Failed to delete the file :: {}", e);
+                                            }
+                                        }
+                                    }
+                                };
+                            }
+                            
+                            // Increment the ProgressBar
+                            if pb.bool {
+                                pb.inner
+                                    .lock()
+                                    .unwrap()
+                                    .set_position(*pb.increment.lock().unwrap());
+                                *pb.increment.lock().unwrap() += 1;
+                            }
+                        }
+                        Err(_) => {
+                            // Increment the failed count by 1 since the encryption failed.
+                            *FAILED_COUNT.lock().unwrap() += 1;
+                        }
+                    } // vec<u8>
+                }
+            };
+        },
+    );
+}
+
+/* Decrypts the files in the file_list in parallel based on the thread_count and Mode. Places the files the target directory
+by replacing the source_dir_name with the target_dir_name.
+Delete the source directory if the delete_src is true.
+*/
+pub fn decrypt_files(
+    file_list: Vec<PathBuf>,
+    thread_count: usize,
+    source_dir_name: &str,
+    target_dir_name: &str,
+    mode: Mode,
+    delete_src: bool,
+    shred_options: &Option<Shred>,
+    anon: bool,
+    dry_run: bool
+) {
+    cipher_init(
+        &file_list,
+        thread_count,
+        |file_data: Vec<u8>, pb: PbGroup, file: Arc<RwLock<&PathBuf>>| {
+            if let Mode::GCM = mode {
+                let mut file_data: Vec<u8> = file_data;
+
+                //let nonce = file_data.clone().into_iter().rev().take(12).rev().collect::<Vec<u8>>();
+                // Onc we have file_data to be decrypted we need to extract the Nonce which we used to Encrypt.
+                // The None is part of the file. It is the last 12 bytes in the encrypted file. We need to know where to Split
+                // saturating_sub helps to find the position at which the split needs to happen which varies based on the file_data length.
+                let final_length = file_data.len().saturating_sub(12);
+
+                // Splits at the final_length. This length is the end of the actual file content and the start of the Nonce. It then returns the Nonce in a new Vec<u8>
+                let nonce = file_data.split_off(final_length);
+
+                let cipher: aes_gcm::AesGcm<aes_gcm::aes::Aes256, _, _> =
+                    Aes256Gcm::new(&GCM_32BYTE_KEY.read().unwrap().as_slice()[0]);
+                //let nonce: GenericArray<u8, UInt<UInt<UInt<UInt<UTerm, B1>, B1>, B0>, B0>> = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
+
+                // We need the Nonce to be of type GenericArray to be used by the decrypt function
+                let nonce = GenericArray::<u8, U12>::from_slice(nonce.as_ref());
+
+                // File is decrypted here
+                match cipher.decrypt(nonce, file_data.as_ref()) {
+                    Ok(mut res) => {
+                        let new_file_name = if anon {
+                            let (old_file_name, decoded_true_file_name) =
+                                decode_file_name_from_base64(file.clone(), &mut res);
+
+                            let decoded_true_file_name =
+                                decoded_true_file_name.replace(source_dir_name, target_dir_name);
+
+                            let decoded_file_name_path = PathBuf::from(&decoded_true_file_name);
+
+                            if !dry_run {
+                                let _ = std::fs::create_dir_all(decoded_file_name_path.parent().unwrap());
+
+                            }
+
+                            logger!(
+                                "Decrypted file {} as :: {}",
+                                old_file_name,
+                                decoded_true_file_name
+                            );
+                            
+                            decoded_true_file_name
+                        } else {
+                            let new_file_name = file
+                                .clone()
+                                .read()
+                                .unwrap()
+                                .as_os_str()
+                                .to_str()
+                                .unwrap()
+                                .replace(source_dir_name, target_dir_name)
+                                .replace(".enom", "")
+                                .to_string();
+
+                            logger!("Decrypted file :: {}", new_file_name);
+
+                            new_file_name
+                        };
+
+                        if !dry_run {
+                            let _ = fs::write(new_file_name, res);
+                        }
+
+                        *SUCCESS_COUNT.lock().unwrap() += 1;
+
+                        if !dry_run {
+                            match &shred_options {
+                                Some(o) => match o {
+                                    Shred::Shred(so) => {
+                                        if let Err(e) = shred(&ShredConfig::non_interactive(
+                                            vec![&*file.clone().read().unwrap()],
+                                            Verbosity::Quiet,
+                                            false,
+                                            so.random_iterations,
+                                            so.rename_times,
+                                        )) {
+                                            logger!("Failed to shred the file :: {}", e);
+                                        }
+                                    }
+                                },
+                                None => {
+                                    // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                                    if delete_src {
+                                        if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                            logger!("Failed to delete the file :: {}", e);
+                                        }
+                                    }
+                                }
+                            };
+                        }
+                        
+                        if pb.bool {
+                            pb.inner
+                                .lock()
+                                .unwrap()
+                                .set_position(*pb.increment.lock().unwrap());
+                            *pb.increment.lock().unwrap() += 1;
+                        }
+                    }
+                    Err(_) => {
+                        *FAILED_COUNT.lock().unwrap() += 1;
+                    }
+                }
+            } else {
+                //Create Aes256Cryptor Object
+                let decrypt_obj = Aes256Cryptor::new({
+                    let mut key = [0u8; 32];
+                    key.copy_from_slice(ECB_32BYTE_KEY.read().unwrap()[0].as_slice());
+                    key
+                });
+
+                let decrypted_result = decrypt_obj.decrypt(file_data);
+
+                if let Ok(mut decrypted_bytes) = decrypted_result {
+                    let new_file_name = if anon {
+                        let (old_file_name, decoded_true_file_name) =
+                            decode_file_name_from_base64(file.clone(), &mut decrypted_bytes);
+
+                        let decoded_true_file_name =
+                            decoded_true_file_name.replace(source_dir_name, target_dir_name);
+
+                        let decoded_file_name_path = PathBuf::from(&decoded_true_file_name);
+
+                        if !dry_run {
+                            let _ = std::fs::create_dir_all(decoded_file_name_path.parent().unwrap());
+
+                        }
+
+                        logger!(
+                            "Decrypted file {} as :: {}",
+                            old_file_name,
+                            decoded_true_file_name
+                        );
+
+                        decoded_true_file_name
+                    } else {
+                        let new_file_name = file
+                            .clone()
+                            .read()
+                            .unwrap()
+                            .as_os_str()
+                            .to_str()
+                            .unwrap()
+                            .replace(source_dir_name, target_dir_name)
+                            .replace(".enom", "")
+                            .to_string();
+
+                        logger!("Decrypted file :: {}", new_file_name);
+
+                        new_file_name
+                    };
+
+                    if !dry_run {
+                        let _ = fs::write(new_file_name, decrypted_bytes);
+
+                        match &shred_options {
+                            Some(o) => match o {
+                                Shred::Shred(so) => {
+                                    if let Err(e) = shred(&ShredConfig::non_interactive(
+                                        vec![&*file.clone().read().unwrap()],
+                                        Verbosity::Quiet,
+                                        false,
+                                        so.random_iterations,
+                                        so.rename_times,
+                                    )) {
+                                        logger!("Failed to shred the file :: {}", e);
+                                    }
+                                }
+                            },
+                            None => {
+                                // Delete the source file if delete_src is true. Note: This is not a safe delete. The file count still exist and it is possible to retrieve
+                                if delete_src {
+                                    if let Err(e) = fs::remove_file(*file.clone().read().unwrap()) {
+                                        logger!("Failed to delete the file :: {}", e);
+                                    }
+                                }
+                            }
+                        };
+                    }
+
+                    
+
+                    if pb.bool {
+                        pb.inner
+                            .lock()
+                            .unwrap()
+                            .set_position(*pb.increment.lock().unwrap());
+                        *pb.increment.lock().unwrap() += 1;
+                    }
+                }
+            };
+        },
+    );
+}
+
+fn encode_file_name_to_base64(
+    file: Arc<RwLock<&PathBuf>>,
+    source_dir_name: &str,
+    target_dir_name: &str,
+) -> (String, String, usize) {
+    let true_file_name = file
+        .clone()
+        .read()
+        .unwrap()
+        .as_os_str()
+        .to_str()
+        .expect("Found a bad file")
+        .replace(source_dir_name, target_dir_name)
+        .to_string();
+
+    let true_file_path = file
+        .clone()
+        .read()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .as_os_str()
+        .to_str()
+        .expect("Found a bad file")
+        .replace(source_dir_name, target_dir_name)
+        .to_string();
+
+    let encoded_true_file_name = BASE64_STANDARD.encode(true_file_name);
+    let encoded_true_file_name_length = encoded_true_file_name.len();
+
+    (
+        true_file_path,
+        encoded_true_file_name,
+        encoded_true_file_name_length,
+    )
+}
+
+fn decode_file_name_from_base64(
+    file: Arc<RwLock<&PathBuf>>,
+    res: &mut Vec<u8>,
+) -> (String, String) {
+    let old_file_name = file
+        .clone()
+        .read()
+        .unwrap()
+        .file_name()
+        .expect("Failed to fetch file name of the source file")
+        .to_str()
+        .expect("Failed to fetch file name of the source file");
+
+    let system_usize = std::mem::size_of::<usize>();
+    let base64_length_splitoff = res.len().saturating_sub(system_usize);
+    let base64_length = res.split_off(base64_length_splitoff);
+    let base64_length = usize::from_ne_bytes(base64_length.try_into().unwrap());
+
+    let base64_splitoff = res.len().saturating_sub(base64_length);
+    let base64 = res.split_off(base64_splitoff);
+
+    let decoded_true_file_name = BASE64_STANDARD
+        .decode(base64)
+        .expect("Failed to decode base64 file path for source files");
+    let decoded_true_file_name = String::from_utf8_lossy(&decoded_true_file_name);
+
+    (
+        old_file_name.to_string(),
+        decoded_true_file_name.to_string(),
+    )
+}
+
+fn generate_random_file_name(true_file_path: String) -> String {
+    let random_suffix: String = rand::rng()
+        .sample_iter(&Alphanumeric)
+        .take(20)
+        .map(char::from)
+        .collect::<String>()
+        + ".enom";
+
+    let new_random_file_name = Path::new(&true_file_path).join(random_suffix);
+
+    let new_random_file_name = new_random_file_name
+        .to_str()
+        .expect("Found a bad file path to rename");
+
+    new_random_file_name.to_string()
+}
+

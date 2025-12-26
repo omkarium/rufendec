@@ -1,0 +1,34 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+|  #### NOTICE ####                                                                                                           |
+|                                                                                                                             |
+|  Most file encryption programs are destructive in nature. You MUST know what you are doing.                                 |
+|                                                                                                                             |
+|  Before you encrypt the files, kindly take this as a strict caution and do not forget to take a backup of your files.       |
+|                                                                                                                             |
+|  +++++++++++++++++++++++++                                                                                                  |
+|  $    Rules to Follow    $                                                                                                  |
+|  +++++++++++++++++++++++++                                                                                                  |
+|                                                                                                                             |
+|  1. Avoid Decrypting Unencrypted Files or Encrypting Already Encrypted Files: Make sure you're not attempting to            |
+|     decrypt files that haven't been encrypted, or encrypt files that are already encrypted.                                 |
+|                                                                                                                             |
+|  2. Limit Threads for Large Files: When processing large files, avoid using too many threads. For instance, if              |
+|     you have 10 files of 1 GB each and are using 10 threads simultaneously, your system could use up to 10 GB of memory.    |
+|                                                                                                                             |
+|  3. Do Not Encrypt UTF-8 Incompatible Files: It's recommended to avoid encrypting files that aren't compatible              |
+|     with UTF-8, such as binary files or executables. The tool may either skip or create such files, but if encrypted,       |
+|     they may not function properly when decrypted. Always avoid encrypting such files in the first place.                   |
+|                                                                                                                             |
+|  4. Avoid Special Characters in File and Folder Names: If your file or folder names contain characters other than           |
+|     alphanumeric ones (spaces are fine), do not use them with this program. While the program won’t prevent you from        |
+|     using them, your files may be misplaced in unexpected locations due to these characters.                                |
+|                                                                                                                             |
+|  5. Do Not Interrupt the Process: If you haven't specified a target directory, do not interrupt the process mid-way.        |
+|     Allow the operation to complete fully to avoid any issues with your files.                                              |
+|                                                                                                                             |
+|  6. Perform Test Runs Before Using on Important Files: Always ensure that you're providing the correct files for            |
+|     the operation. Run some test cases on dummy files before using the tool on important data to avoid errors.              |
+|                                                                                                                             |
+|  USE AT YOUR OWN RISK!                                                                                                      |
+|                                                                                                                             |
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

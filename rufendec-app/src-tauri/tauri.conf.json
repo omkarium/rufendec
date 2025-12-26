@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "rufendec-app",
+  "version": "0.1.0",
+  "identifier": "com.github.omkarium.rufendec",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Rufendec - Desktop App",
+        "width": 1080,
+        "height": 1080
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false
+  },
+  "plugins": {}
+}
