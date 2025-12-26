@@ -149,8 +149,7 @@ fn progress_bar(file_count: u64) -> Option<Arc<Mutex<ProgressBar>>> {
 pub fn pre_validate_source(source_dir: &PathBuf, operation: &Operation) -> Result<(), String> {
     let illegal_locations = [
         "/", "/root", "/boot", "/usr", "/lib", "/lib64", "/lib32", "/libx32", "/mnt",
-        "/dev", "/sys", "/run", "/bin", "/sbin", "/proc", "/media", "/var", "/etc", "/srv", "/opt",
-        "C:", "c:",
+        "/dev", "/sys", "/run", "/bin", "/sbin", "/proc", "/media", "/var", "/etc", "/srv", "/opt"
     ];
 
     let source_str = source_dir.to_str().unwrap();
@@ -168,9 +167,6 @@ pub fn pre_validate_source(source_dir: &PathBuf, operation: &Operation) -> Resul
         if illegal == "/" {
             // Special case: only reject if path is exactly "/", not paths starting with "/"
             source_str == "/"
-        } else if illegal == "C:" || illegal == "c:" {
-            // Windows drive check: path starts with C: or c: (case insensitive)
-            source_str.len() >= 2 && source_str[..2].eq_ignore_ascii_case(illegal)
         } else {
             // For other paths, check if source starts with the illegal path followed by / or is exactly that path
             source_str == illegal || source_str.starts_with(&format!("{}/", illegal))
