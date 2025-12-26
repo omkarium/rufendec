@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  # 1. Build CLI/Library Binaries
+  # 1. Build Root Rust Binaries (CLI/Library)
   build-and-upload:
     name: Build Binary (${{ matrix.build }})
     runs-on: ${{ matrix.os }}
@@ -25,6 +25,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      
       - name: Get version
         shell: bash
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
@@ -58,13 +59,22 @@ jobs:
         with:
           files: ${{ env.ASSET }}
 
-  # 2. Build Tauri App
+  # 2. Build Tauri App (Multi-platform)
   build-tauri:
-    name: Build Tauri App
-    runs-on: ubuntu-latest
+    name: Build Tauri (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+          - platform: windows
+            os: windows-latest
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
@@ -75,10 +85,18 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Linux Dependencies
+      - name: Install Linux Dependencies (Tauri 2.0)
+        if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            javascriptcoregtk-4.1 \
+            libsoup-3.0-dev
 
       - name: Install Frontend Deps
         working-directory: ./rufendec-app
@@ -89,7 +107,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # This tells the action where your package.json and src-tauri are
           projectPath: ./rufendec-app
           tagName: ${{ github.ref_name }}
           releaseName: "Release ${{ github.ref_name }}"
@@ -104,6 +121,4 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Publish
-        # Since it's not a workspace, this runs on the root Cargo.toml
-        # We use --allow-dirty because the Tauri build might have generated files
         run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
