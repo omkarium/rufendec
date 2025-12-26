@@ -3,13 +3,13 @@ name: Deploy
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+      - 'v*' # Trigger on any tag starting with v
 
 permissions:
   contents: write
 
 jobs:
-  # 1. Build Root Rust Binaries (CLI/Library)
+  # 1. Build Root Rust Binaries (CLI)
   build-and-upload:
     name: Build Binary (${{ matrix.build }})
     runs-on: ${{ matrix.os }}
