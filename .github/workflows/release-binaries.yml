@@ -44,8 +44,8 @@ jobs:
           - platform: macos
             os: macos-latest
             target: x86_64-apple-darwin
-            cli_binary: target/x86_64-apple-darwin/release/rufendec-macos
-            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app-macos
+            cli_binary: target/x86_64-apple-darwin/release/rufendec
+            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app
 
     steps:
       - uses: actions/checkout@v4
@@ -85,22 +85,50 @@ jobs:
         if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
         working-directory: ./rufendec-app
         run: cargo tauri build --no-bundle
+        
+      # --- 3. RENAME AND UPLOAD ---
+      - name: Prepare and Rename Binaries
+        shell: bash
+        run: |
+          # Determine version string (Tag or Manual)
+          VERSION="${{ github.ref_name || github.event.inputs.tag_name || 'manual' }}"
+          
+          # Handle CLI Rename
+          if [ -f "${{ matrix.cli_binary }}" ]; then
+            CLI_OUT="rufendec-${VERSION}-${{ matrix.platform }}"
+            # Add .exe for windows
+            [[ "${{ matrix.platform }}" == "windows" ]] && CLI_OUT="$CLI_OUT.exe"
+            mv "${{ matrix.cli_binary }}" "$CLI_OUT"
+            echo "CLI_FILENAME=$CLI_OUT" >> $GITHUB_ENV
+          fi
 
-      # --- 3. UPLOAD TO RELEASE ---
-      - name: Rename and Upload CLI
-        if: github.event_name == 'push' || github.event.inputs.target != 'tauri-app'
+          # Handle GUI Rename
+          if [ -f "${{ matrix.tauri_binary }}" ]; then
+            GUI_OUT="rufendec-gui-${VERSION}-${{ matrix.platform }}"
+            # Add .exe for windows
+            [[ "${{ matrix.platform }}" == "windows" ]] && GUI_OUT="$GUI_OUT.exe"
+            mv "${{ matrix.tauri_binary }}" "$GUI_OUT"
+            echo "GUI_FILENAME=$GUI_OUT" >> $GITHUB_ENV
+          fi
+
+      - name: Upload to Release CLI
+        # Only upload if it's a tag push (or if you manually provided a tag name)
+        if: github.event_name == 'push' || github.event.inputs.tag_name != 'cli-app'
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ matrix.cli_binary }}
+          files: ${{ env.CLI_FILENAME }}
           tag_name: ${{ github.ref_name || github.event.inputs.tag_name }}
           name: "Release ${{ github.ref_name || github.event.inputs.tag_name }}"
           body: "Binaries generated via ${{ github.event_name }}"
 
-      - name: Rename and Upload GUI
-        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
+      - name: Upload to Release Tauri App
+        # Only upload if it's a tag push (or if you manually provided a tag name)
+        if: github.event_name == 'push' || github.event.inputs.tag_name != 'tauri-app'
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ matrix.tauri_binary }}
+          files: ${{ env.GUI_FILENAME }}
           tag_name: ${{ github.ref_name || github.event.inputs.tag_name }}
+          name: "Release ${{ github.ref_name || github.event.inputs.tag_name }}"
+          body: "Binaries generated via ${{ github.event_name }}"
 
-  
+      
