@@ -1,0 +1,100 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: # Enables the manual "Run Workflow" button
+    inputs:
+      target:
+        description: 'What to build and publish?'
+        required: true
+        default: 'tauri-app'
+        type: choice
+        options:
+          - tauri-app
+          - cli-only
+          - both
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cli_binary: target/x86_64-unknown-linux-gnu/release/rufendec
+            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app
+          - platform: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            cli_binary: target/x86_64-pc-windows-msvc/release/rufendec.exe
+            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app.exe
+          - platform: macos
+            os: macos-latest
+            target: x86_64-apple-darwin
+            cli_binary: target/x86_64-apple-darwin/release/rufendec
+            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux Dependencies (Tauri 2.0)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf javascriptcoregtk-4.1 libsoup-3.0-dev
+
+      # --- 1. BUILD ROOT CLI (Runs if Tag OR manually selected) ---
+      - name: Build Root CLI
+        if: github.event_name == 'push' || github.event.inputs.target != 'tauri-app'
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # --- 2. BUILD TAURI APP (Runs if Tag OR manually selected) ---
+      - name: Cache Tauri CLI
+        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
+        id: cache-tauri
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/bin/cargo-tauri
+          key: ${{ runner.os }}-tauri-cli-2.0
+
+      - name: Install Tauri CLI
+        if: (github.event_name == 'push' || github.event.inputs.target != 'cli-only') && steps.cache-tauri.outputs.cache-hit != 'true'
+        run: cargo install tauri-cli --version "^2.0.0" --locked
+
+      - name: Build Tauri Raw Binary
+        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
+        working-directory: ./rufendec-app
+        run: cargo tauri build --no-bundle
+
+      # --- 3. UPLOAD TO RELEASE ---
+      - name: Rename and Upload CLI
+        if: github.event_name == 'push' || github.event.inputs.target != 'tauri-app'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ matrix.cli_binary }}
+          name: "Release ${{ github.ref_name || 'Manual Build' }}"
+          body: "Binaries generated via ${{ github.event_name }}"
+
+      - name: Rename and Upload GUI
+        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ matrix.tauri_binary }}
+
+  
