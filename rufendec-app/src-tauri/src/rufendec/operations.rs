@@ -149,34 +149,36 @@ fn progress_bar(file_count: u64) -> Option<Arc<Mutex<ProgressBar>>> {
 pub fn pre_validate_source(source_dir: &PathBuf, operation: &Operation) -> Result<(), String> {
     let illegal_locations = [
         "/", "/root", "/boot", "/usr", "/lib", "/lib64", "/lib32", "/libx32", "/mnt",
-        "/dev", "/sys", "/run", "/bin", "/sbin", "/proc", "/media", "/var", "/etc", "/srv", "/opt"
+        "/dev", "/sys", "/run", "/bin", "/sbin", "/proc", "/media", "/var", "/etc", "/srv",
+        "C:/", "C:/Windows", "C:/System32", "C:/Program Files", "C:/Program Files (x86)"
     ];
-
-    let source_str = source_dir.to_str().unwrap();
     
-    // Check if path is exactly one of the illegal locations
-    if illegal_locations.contains(&source_str) {
-        let error_msg = format!("Hey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.\n\nHere is the list of paths your source directory path must never start with : \n{:?}", illegal_locations);
-        log(LogLevel::ERROR, error_msg.as_str());
-        return Err(error_msg);
-    }
+    let source_str = source_dir.to_str().unwrap().replace("\\", "/"); // Normalize Windows backslashes
+    let source_lower = source_str.to_lowercase();
     
-    // Check if path starts with any illegal location followed by a path separator (or is exactly that path)
-    // This prevents /Users/... from matching /, but still catches /root/..., /usr/..., etc.
-    if illegal_locations.iter().any(|&illegal| {
-        if illegal == "/" {
-            // Special case: only reject if path is exactly "/", not paths starting with "/"
-            source_str == "/"
+    // 1. Block if it matches an illegal location or is a subdirectory of one
+    let is_illegal = illegal_locations.iter().any(|&illegal| {
+        let illegal_lower = illegal.to_lowercase();
+        if illegal == "/" || illegal == "C:/" {
+            source_str == illegal // Only reject exact root
         } else {
-            // For other paths, check if source starts with the illegal path followed by / or is exactly that path
-            source_str == illegal || source_str.starts_with(&format!("{}/", illegal))
+            source_lower == illegal_lower || source_lower.starts_with(&format!("{}/", illegal_lower))
         }
-    }) {
-        let error_msg = format!("Hey Human, Are you trying to pass a illegal source path? That's a BIG NO NO.\n\nHere is the list of paths your source directory path must never start with : \n{:?}", illegal_locations);
+    });
+    
+    // 2. Specific Logic for Home Directories
+    // Rejects "/home", "/home/", "C:/Users", "C:/Users/"
+    // Allows "/home/user", "C:/Users/user"
+    let is_home_root = {
+        let path = source_lower.trim_end_matches('/');
+        path == "/home" || path == "c:/users"
+    };
+    
+    if is_illegal || is_home_root {
+        let error_msg = format!("Hey Human, path '{}' is restricted!", source_str);
         log(LogLevel::ERROR, error_msg.as_str());
         return Err(error_msg);
     }
-
     // Validate if the Source path has any encrypted file while the operation chosen by the user is encrypt
     if let Operation::Encrypt = operation {
         // Don't show validation message unless verbose is enabled - errors will be shown regardless
