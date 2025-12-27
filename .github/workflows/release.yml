@@ -4,6 +4,17 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch: # Enables the manual "Run Workflow" button
+    inputs:
+      target:
+        description: 'What to build and publish?'
+        required: true
+        default: 'tauri-app'
+        type: choice
+        options:
+          - tauri-app
+          - cli-only
+          - both
 
 permissions:
   contents: write
@@ -21,22 +32,16 @@ jobs:
             target: x86_64-unknown-linux-gnu
             cli_binary: target/x86_64-unknown-linux-gnu/release/rufendec
             tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app
-            cli_asset: rufendec-cli-linux
-            tauri_asset: rufendec-gui-linux
           - platform: windows
             os: windows-latest
             target: x86_64-pc-windows-msvc
             cli_binary: target/x86_64-pc-windows-msvc/release/rufendec.exe
             tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app.exe
-            cli_asset: rufendec-cli-windows.exe
-            tauri_asset: rufendec-gui-windows.exe
           - platform: macos
             os: macos-latest
             target: x86_64-apple-darwin
             cli_binary: target/x86_64-apple-darwin/release/rufendec
             tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app
-            cli_asset: rufendec-cli-macos
-            tauri_asset: rufendec-gui-macos
 
     steps:
       - uses: actions/checkout@v4
@@ -54,12 +59,14 @@ jobs:
             libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf javascriptcoregtk-4.1 libsoup-3.0-dev
 
-      # --- 1. BUILD ROOT CLI ---
+      # --- 1. BUILD ROOT CLI (Runs if Tag OR manually selected) ---
       - name: Build Root CLI
+        if: github.event_name == 'push' || github.event.inputs.target != 'tauri-app'
         run: cargo build --release --target ${{ matrix.target }}
 
-      # --- 2. BUILD TAURI APP ---
+      # --- 2. BUILD TAURI APP (Runs if Tag OR manually selected) ---
       - name: Cache Tauri CLI
+        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
         id: cache-tauri
         uses: actions/cache@v3
         with:
@@ -67,28 +74,29 @@ jobs:
           key: ${{ runner.os }}-tauri-cli-2.0
 
       - name: Install Tauri CLI
-        if: steps.cache-tauri.outputs.cache-hit != 'true'
+        if: (github.event_name == 'push' || github.event.inputs.target != 'cli-only') && steps.cache-tauri.outputs.cache-hit != 'true'
         run: cargo install tauri-cli --version "^2.0.0" --locked
 
       - name: Build Tauri Raw Binary
+        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
         working-directory: ./rufendec-app
         run: cargo tauri build --no-bundle
 
-      # --- 3. UPLOAD EVERYTHING ---
+      # --- 3. UPLOAD TO RELEASE ---
       - name: Rename and Upload CLI
+        if: github.event_name == 'push' || github.event.inputs.target != 'tauri-app'
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ matrix.cli_binary }}
-          name: "Release ${{ github.ref_name }}"
-          # We manually set the name of the asset on the release page
-          body: "CLI and GUI binaries for ${{ github.ref_name }}"
+          name: "Release ${{ github.ref_name || 'Manual Build' }}"
+          body: "Binaries generated via ${{ github.event_name }}"
 
       - name: Rename and Upload GUI
+        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ matrix.tauri_binary }}
 
-  # 4. PUBLISH TO CRATES.IO
   publish-crate:
     name: Publish to crates.io
     runs-on: ubuntu-latest
@@ -97,9 +105,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Publish
+
+      # Publishes Root CLI only if selected or Tag push
+      - name: Publish Root CLI
+        if: github.event_name == 'push' || github.event.inputs.target == 'cli-only' || github.event.inputs.target == 'both'
         continue-on-error: true
         run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+
+      # Publishes App only if selected or Tag push
       - name: Publish App Crate
-        working-directory: ./rufendec-app
-        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+        if: github.event_name == 'push' || github.event.inputs.target == 'tauri-app' || github.event.inputs.target == 'both'
+        run: cargo publish --manifest-path ./rufendec-app/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
