@@ -115,4 +115,4 @@ jobs:
       # Publishes App only if selected or Tag push
       - name: Publish App Crate
         if: github.event_name == 'push' || github.event.inputs.target == 'tauri-app' || github.event.inputs.target == 'both'
-        run: cargo publish --manifest-path ./rufendec-app/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+        run: cargo publish --manifest-path rufendec-app/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
