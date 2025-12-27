@@ -20,21 +20,21 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             cli_binary: target/x86_64-unknown-linux-gnu/release/rufendec
-            tauri_binary: rufendec-app/src-tauri/target/release/rufendec
+            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app
             cli_asset: rufendec-cli-linux
             tauri_asset: rufendec-gui-linux
           - platform: windows
             os: windows-latest
             target: x86_64-pc-windows-msvc
             cli_binary: target/x86_64-pc-windows-msvc/release/rufendec.exe
-            tauri_binary: rufendec-app/src-tauri/target/release/rufendec.exe
+            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app.exe
             cli_asset: rufendec-cli-windows.exe
             tauri_asset: rufendec-gui-windows.exe
           - platform: macos
             os: macos-latest
             target: x86_64-apple-darwin
             cli_binary: target/x86_64-apple-darwin/release/rufendec
-            tauri_binary: rufendec-app/src-tauri/target/release/rufendec
+            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app
             cli_asset: rufendec-cli-macos
             tauri_asset: rufendec-gui-macos
 
@@ -98,4 +98,8 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Publish
+        continue-on-error: true
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+      - name: Publish App Crate
+        working-directory: ./rufendec-app
         run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
