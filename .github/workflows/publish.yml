@@ -1,0 +1,32 @@
+name: Publish to Crates.io
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'What to publish?'
+        required: true
+        default: 'both'
+        type: choice
+        options: [tauri-app, cli-only, both]
+
+jobs:
+  publish-crate:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish Root CLI
+        if: github.event_name == 'push' || github.event.inputs.target == 'cli-only' || github.event.inputs.target == 'both'
+        continue-on-error: true # Helps if one crate fails, the next can still try
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+
+      - name: Publish App Crate
+        if: github.event_name == 'push' || github.event.inputs.target == 'tauri-app' || github.event.inputs.target == 'both'
+        run: cargo publish --manifest-path rufendec-app/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
