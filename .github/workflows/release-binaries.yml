@@ -40,8 +40,8 @@ jobs:
           - platform: macos
             os: macos-latest
             target: x86_64-apple-darwin
-            cli_binary: target/x86_64-apple-darwin/release/rufendec
-            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app
+            cli_binary: target/x86_64-apple-darwin/release/rufendec-macos
+            tauri_binary: rufendec-app/src-tauri/target/release/rufendec-app-macos
 
     steps:
       - uses: actions/checkout@v4
