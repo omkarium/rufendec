@@ -50,6 +50,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract Versions from Cargo.toml
+        shell: bash
+        run: |
+          # Extract version from root Cargo.toml
+          ROOT_VER=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          echo "ROOT_VERSION=v$ROOT_VER" >> $GITHUB_ENV
+    
+          # Extract version from Tauri Cargo.toml
+          TAURI_VER=$(sed -n 's/^version = "\(.*\)"/\1/p' rufendec-app/src-tauri/Cargo.toml | head -n 1)
+          echo "TAURI_VERSION=v$TAURI_VER" >> $GITHUB_ENV
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -95,7 +106,7 @@ jobs:
           
           # Handle CLI Rename
           if [ -f "${{ matrix.cli_binary }}" ]; then
-            CLI_OUT="rufendec-${VERSION}-${{ matrix.platform }}"
+            CLI_OUT="rufendec-${{ env.ROOT_VERSION }}-${{ matrix.platform }}"
             # Add .exe for windows
             [[ "${{ matrix.platform }}" == "windows" ]] && CLI_OUT="$CLI_OUT.exe"
             mv "${{ matrix.cli_binary }}" "$CLI_OUT"
@@ -104,7 +115,7 @@ jobs:
 
           # Handle GUI Rename
           if [ -f "${{ matrix.tauri_binary }}" ]; then
-            GUI_OUT="rufendec-gui-${VERSION}-${{ matrix.platform }}"
+            GUI_OUT="rufendec-gui-${{ env.TAURI_VERSION }}-${{ matrix.platform }}"
             # Add .exe for windows
             [[ "${{ matrix.platform }}" == "windows" ]] && GUI_OUT="$GUI_OUT.exe"
             mv "${{ matrix.tauri_binary }}" "$GUI_OUT"
