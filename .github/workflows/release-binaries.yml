@@ -1,9 +1,7 @@
+
 name: Deploy
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       target:
@@ -15,10 +13,6 @@ on:
           - tauri-app
           - cli-only
           - both
-      tag_name:
-        description: 'Release Tag (Required for manual runs, e.g., v1.0.0)'
-        required: false
-        default: 'manual-release'
 
 permissions:
   contents: write
@@ -50,14 +44,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # --- 1. EXTRACT VERSIONS ---
       - name: Extract Versions from Cargo.toml
         shell: bash
         run: |
-          # Extract version from root Cargo.toml
+          # Extract version from root Cargo.toml (CLI)
           ROOT_VER=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
           echo "ROOT_VERSION=v$ROOT_VER" >> $GITHUB_ENV
     
-          # Extract version from Tauri Cargo.toml
+          # Extract version from Tauri Cargo.toml (GUI)
           TAURI_VER=$(sed -n 's/^version = "\(.*\)"/\1/p' rufendec-app/src-tauri/Cargo.toml | head -n 1)
           echo "TAURI_VERSION=v$TAURI_VER" >> $GITHUB_ENV
 
@@ -67,21 +62,21 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install Linux Dependencies (Tauri 2.0)
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && github.event.inputs.target != 'cli-only'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf javascriptcoregtk-4.1 libsoup-3.0-dev
 
-      # --- 1. BUILD ROOT CLI ---
+      # --- 2. BUILD ROOT CLI ---
       - name: Build Root CLI
-        if: github.event_name == 'push' || github.event.inputs.target != 'tauri-app'
+        if: github.event.inputs.target != 'tauri-app'
         run: cargo build --release --target ${{ matrix.target }}
 
-      # --- 2. BUILD TAURI APP ---
+      # --- 3. BUILD TAURI APP ---
       - name: Cache Tauri CLI
-        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
+        if: github.event.inputs.target != 'cli-only'
         id: cache-tauri
         uses: actions/cache@v3
         with:
@@ -89,25 +84,21 @@ jobs:
           key: ${{ runner.os }}-tauri-cli-2.0
 
       - name: Install Tauri CLI
-        if: (github.event_name == 'push' || github.event.inputs.target != 'cli-only') && steps.cache-tauri.outputs.cache-hit != 'true'
+        if: github.event.inputs.target != 'cli-only' && steps.cache-tauri.outputs.cache-hit != 'true'
         run: cargo install tauri-cli --version "^2.0.0" --locked
 
       - name: Build Tauri Raw Binary
-        if: github.event_name == 'push' || github.event.inputs.target != 'cli-only'
+        if: github.event.inputs.target != 'cli-only'
         working-directory: ./rufendec-app
         run: cargo tauri build --no-bundle
         
-      # --- 3. RENAME AND UPLOAD ---
+      # --- 4. RENAME BINARIES ---
       - name: Prepare and Rename Binaries
         shell: bash
         run: |
-          # Determine version string (Tag or Manual)
-          VERSION="${{ github.ref_name || github.event.inputs.tag_name || 'manual' }}"
-          
           # Handle CLI Rename
           if [ -f "${{ matrix.cli_binary }}" ]; then
             CLI_OUT="rufendec-${{ env.ROOT_VERSION }}-${{ matrix.platform }}"
-            # Add .exe for windows
             [[ "${{ matrix.platform }}" == "windows" ]] && CLI_OUT="$CLI_OUT.exe"
             mv "${{ matrix.cli_binary }}" "$CLI_OUT"
             echo "CLI_FILENAME=$CLI_OUT" >> $GITHUB_ENV
@@ -116,30 +107,29 @@ jobs:
           # Handle GUI Rename
           if [ -f "${{ matrix.tauri_binary }}" ]; then
             GUI_OUT="rufendec-gui-${{ env.TAURI_VERSION }}-${{ matrix.platform }}"
-            # Add .exe for windows
             [[ "${{ matrix.platform }}" == "windows" ]] && GUI_OUT="$GUI_OUT.exe"
             mv "${{ matrix.tauri_binary }}" "$GUI_OUT"
             echo "GUI_FILENAME=$GUI_OUT" >> $GITHUB_ENV
           fi
 
-      - name: Upload to Release CLI
-        # Only upload if it's a tag push (or if you manually provided a tag name)
-        if: github.event_name == 'push' || github.event.inputs.tag_name != 'cli-app'
+      # --- 5. UPLOAD TO RELEASE ---
+      # This step will create the tag/release automatically on the current commit
+      - name: Upload CLI to Release
+        if: github.event.inputs.target != 'tauri-app' && env.CLI_FILENAME != ''
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ env.CLI_FILENAME }}
           tag_name: ${{ env.ROOT_VERSION }}
           name: "Release ${{ env.ROOT_VERSION }}"
-          body: "Binaries generated via ${{ github.event_name }} ${{ env.ROOT_VERSION }}"
+          target_commitish: ${{ github.sha }}
+          body: "CLI Build: ${{ env.ROOT_VERSION }} (Manual Workflow)"
 
-      - name: Upload to Release Tauri App
-        # Only upload if it's a tag push (or if you manually provided a tag name)
-        if: github.event_name == 'push' || github.event.inputs.tag_name != 'tauri-app'
+      - name: Upload Tauri App to Release
+        if: github.event.inputs.target != 'cli-only' && env.GUI_FILENAME != ''
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ env.GUI_FILENAME }}
           tag_name: ${{ env.TAURI_VERSION }}
           name: "Release ${{ env.TAURI_VERSION }}"
-          body: "Binaries generated via ${{ github.event_name }} ${{ env.TAURI_VERSION }}"
-
-      
+          target_commitish: ${{ github.sha }}
+          body: "GUI Build: ${{ env.TAURI_VERSION }} (Manual Workflow)"
