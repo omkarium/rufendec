@@ -128,9 +128,9 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ env.CLI_FILENAME }}
-          tag_name: ${{ github.ref_name || github.event.inputs.tag_name }}
-          name: "Release ${{ github.ref_name || github.event.inputs.tag_name }}"
-          body: "Binaries generated via ${{ github.event_name }}"
+          tag_name: ${{ env.ROOT_VERSION }}
+          name: "Release ${{ env.ROOT_VERSION }}"
+          body: "Binaries generated via ${{ github.event_name }} ${{ env.ROOT_VERSION }}"
 
       - name: Upload to Release Tauri App
         # Only upload if it's a tag push (or if you manually provided a tag name)
@@ -138,8 +138,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ env.GUI_FILENAME }}
-          tag_name: ${{ github.ref_name || github.event.inputs.tag_name }}
-          name: "Release ${{ github.ref_name || github.event.inputs.tag_name }}"
-          body: "Binaries generated via ${{ github.event_name }}"
+          tag_name: ${{ env.TAURI_VERSION }}
+          name: "Release ${{ env.TAURI_VERSION }}"
+          body: "Binaries generated via ${{ github.event_name }} ${{ env.TAURI_VERSION }}"
 
       
